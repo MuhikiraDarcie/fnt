@@ -1,0 +1,2192 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FNT — Fitness Nutrition Tracker</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        },
+                        snack: '#f59e0b',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- html2pdf.js for exporting styled PDF reports -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+
+        /* Font Size Utilities matching MD Suite */
+        html.text-size-sm { font-size: 13px !important; }
+        html.text-size-md { font-size: 15px !important; }
+        html.text-size-lg { font-size: 17px !important; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.05); }
+        .dark ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); border-radius: 9999px; }
+        .dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 9999px; }
+
+        /* Keep native date/time picker indicators visible on dark controls */
+        .dark input[type="date"]::-webkit-calendar-picker-indicator,
+        .dark input[type="time"]::-webkit-calendar-picker-indicator {
+            filter: invert(1) brightness(1.8);
+            opacity: 1;
+            cursor: pointer;
+        }
+
+        /* Clean A4 PDF Report Styling */
+        #pdf-report-document {
+            color: #111827;
+            line-height: 1.4;
+            overflow: visible;
+            box-sizing: border-box;
+        }
+        .report-pdf-export #pdf-report-document {
+            width: 190mm !important;
+            max-width: 190mm !important;
+            margin: 0 !important;
+            padding: 8mm !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            font-size: 9pt !important;
+        }
+        .report-pdf-export #pdf-report-document .grid {
+            display: block !important;
+            width: 100% !important;
+        }
+        .report-pdf-export #pdf-report-document .grid > * {
+            display: block !important;
+            width: 100% !important;
+            margin-bottom: 4mm !important;
+        }
+
+        @media print {
+            body * { visibility: hidden !important; }
+            #pdf-report-document, #pdf-report-document * { visibility: visible !important; }
+            #pdf-report-document {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                max-width: none !important;
+                background: #ffffff !important;
+                color: #111827 !important;
+                box-shadow: none !important;
+                border: none !important;
+                padding: 12mm !important;
+            }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen transition-colors duration-200">
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 space-y-3 pointer-events-none"></div>
+
+    <!-- Main Outer Wrapper -->
+    <div class="flex h-screen overflow-hidden">
+
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar" class="w-72 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-all duration-300 z-30 fixed lg:relative h-full -translate-x-full lg:translate-x-0 no-print">
+            <div class="p-5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-base shadow-sm">
+                        FNT
+                    </div>
+                    <div>
+                        <h1 class="font-extrabold text-base tracking-tight leading-tight text-gray-900 dark:text-white">FNT</h1>
+                        <p class="text-xs font-medium text-emerald-600 dark:text-emerald-400">Fitness Nutrition Tracker</p>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar()" class="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all">
+                    <i class="fa-solid fa-chart-line w-5 text-center text-lg"></i>
+                    <span>Fitness Dashboard</span>
+                </button>
+                <button onclick="switchTab('records')" id="nav-records" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all">
+                    <i class="fa-solid fa-list-check w-5 text-center text-lg"></i>
+                    <span>Daily Log & Ledger</span>
+                </button>
+                <button onclick="openEntryCategory('WORKOUT')" id="nav-entry" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all">
+                    <i class="fa-solid fa-person-running w-5 text-center text-lg"></i>
+                    <span>WORKOUT</span>
+                </button>
+                <button onclick="openEntryCategory('FOOD')" id="nav-food" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all"><i class="fa-solid fa-bowl-food w-5 text-center text-lg"></i><span>FOOD</span></button>
+                    <button onclick="openEntryCategory('FRUIT')" id="nav-fruit" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all"><i class="fa-solid fa-apple-whole w-5 text-center text-lg"></i><span>FRUIT</span></button>
+                    <button onclick="openEntryCategory('SNACK')" id="nav-snack" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all"><i class="fa-solid fa-cookie-bite w-5 text-center text-lg"></i><span>SNACK</span></button>
+                    <button onclick="openEntryCategory('BEVERAGE')" id="nav-beverage" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all"><i class="fa-solid fa-glass-water w-5 text-center text-lg"></i><span>BEVERAGE</span></button>
+                <button onclick="switchTab('reports')" id="nav-reports" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all">
+                    <i class="fa-solid fa-file-pdf w-5 text-center text-lg"></i>
+                    <span>Progress Reports & PDF</span>
+                </button>
+                <button onclick="switchTab('goals')" id="nav-goals" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all"><i class="fa-solid fa-bullseye w-5 text-center text-lg"></i><span>Goals</span></button>
+                <button onclick="switchTab('settings')" id="nav-settings" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all"><i class="fa-solid fa-gear w-5 text-center text-lg"></i><span>App Settings</span></button>
+            </nav>
+
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 h-16 flex items-center justify-between px-4 lg:px-8 no-print">
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <i class="fa-solid fa-bars text-lg"></i>
+                    </button>
+                    <h2 id="page-title" class="text-xl font-bold text-gray-800 dark:text-white">Fitness Dashboard</h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="switchTab('entry'); resetEntryForm();" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition">
+                        <i class="fa-solid fa-plus"></i>
+                        <span class="hidden sm:inline">Log Entry</span>
+                    </button>
+                    <div class="h-6 w-px bg-gray-200 dark:bg-gray-800"></div>
+                    <div class="text-xs text-right hidden sm:block">
+                        <p class="font-semibold text-gray-700 dark:text-gray-300" id="live-clock-time">--:--:--</p>
+                        <p class="text-gray-400" id="live-clock-date">--- --, ----</p>
+                    </div>
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+                <!-- TAB 1: DASHBOARD & FITNESS DASHBOARD -->
+                <section id="tab-dashboard" class="tab-content space-y-6">
+                    <!-- Filter Header Bar -->
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                        <div>
+                            <h3 class="font-bold text-gray-900 dark:text-white">Fitness & Nutrition Overview</h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Real-time workout expenditure, clean fuel macros, hydration & zero-added-sugar tracking.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <label for="dashboard-period-filter" class="text-xs text-gray-500">Period:</label>
+                            <select id="dashboard-period-filter" onchange="renderDashboard()" class="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-xs font-semibold rounded-lg px-3 py-2 outline-none">
+                                <option value="today" selected>Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                                <option value="all">All Time</option>
+                                <option value="custom">Custom Date Range</option>
+                            </select>
+                            <div id="dashboard-custom-date-container" class="hidden flex items-center flex-wrap gap-2">
+                                <label class="text-[11px] text-gray-500" for="dashboard-date-from">From</label>
+                                <input type="date" id="dashboard-date-from" onchange="renderDashboard()" class="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-xs rounded-lg px-2 py-2">
+                                <label class="text-[11px] text-gray-500" for="dashboard-date-to">To</label>
+                                <input type="date" id="dashboard-date-to" onchange="renderDashboard()" class="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-xs rounded-lg px-2 py-2">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 6 Summary KPI Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+                        <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Calories Intake</p>
+                            <h4 class="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1" id="dash-cal-in">0 kcal</h4>
+                            <p class="text-[11px] text-gray-400 mt-1" id="dash-cal-in-sub">Goal: 2,200 kcal</p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Calories Burned</p>
+                            <h4 class="text-xl font-black text-rose-500 mt-1" id="dash-cal-out">0 kcal</h4>
+                            <p class="text-[11px] text-gray-400 mt-1" id="dash-workout-mins">0 mins active</p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Net Balance</p>
+                            <h4 class="text-xl font-black text-blue-500 mt-1" id="dash-net-cal">0 kcal</h4>
+                            <p class="text-[11px] text-gray-400 mt-1">Intake minus burned</p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Protein Intake</p>
+                            <h4 class="text-xl font-black text-gray-900 dark:text-white mt-1" id="dash-protein">0 g</h4>
+                            <p class="text-[11px] text-emerald-500 mt-1" id="dash-protein-sub">Goal: 140 g</p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Clean Hydration</p>
+                            <h4 class="text-xl font-black text-teal-500 mt-1" id="dash-hydration">0.00 L</h4>
+                            <p class="text-[11px] text-gray-400 mt-1" id="dash-hydration-sub">Goal: 3.0 L (0g Sugar)</p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Sugar-Free Score</p>
+                            <h4 class="text-xl font-black text-amber-500 mt-1" id="dash-sugar-free">100%</h4>
+                            <p class="text-[11px] text-gray-400 mt-1" id="dash-entries-count">0 clean logs</p>
+                        </div>
+                    </div>
+
+                    <!-- Category Breakdown Mini Strip -->
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        <div class="bg-white dark:bg-gray-900 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                            <span class="text-xs font-bold text-teal-600 dark:text-teal-400"><i class="fa-solid fa-person-running mr-1.5"></i>Workouts</span>
+                            <span id="cat-count-workout" class="font-mono text-xs font-black">0</span>
+                        </div>
+                        <div class="bg-white dark:bg-gray-900 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-utensils mr-1.5"></i>Meals/Food</span>
+                            <span id="cat-count-food" class="font-mono text-xs font-black">0</span>
+                        </div>
+                        <div class="bg-white dark:bg-gray-900 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                            <span class="text-xs font-bold text-amber-600 dark:text-amber-400"><i class="fa-solid fa-seedling mr-1.5"></i>Snacks</span>
+                            <span id="cat-count-snack" class="font-mono text-xs font-black">0</span>
+                        </div>
+                        <div class="bg-white dark:bg-gray-900 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                            <span class="text-xs font-bold text-purple-600 dark:text-purple-400"><i class="fa-solid fa-apple-whole mr-1.5"></i>Fruits</span>
+                            <span id="cat-count-fruit" class="font-mono text-xs font-black">0</span>
+                        </div>
+                        <div class="col-span-2 sm:col-span-1 bg-white dark:bg-gray-900 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                            <span class="text-xs font-bold text-blue-600 dark:text-blue-400"><i class="fa-solid fa-glass-water mr-1.5"></i>Clean Drinks</span>
+                            <span id="cat-count-beverage" class="font-mono text-xs font-black">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Visual Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <div class="flex justify-between items-center mb-4">
+                                <div>
+                                    <h4 class="font-bold text-gray-900 dark:text-white text-sm">Calorie Balance & 3-Day Trend</h4>
+                                    <p class="text-[11px] text-gray-400">Intake vs. Burned Energy & Predictive Trajectory</p>
+                                </div>
+                                <span class="text-xs text-emerald-500 font-semibold flex items-center gap-1"><i class="fa-solid fa-circle text-[7px] animate-pulse"></i> Live</span>
+                            </div>
+                            <div class="h-64 relative">
+                                <canvas id="chart-calorie-timeline"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between">
+                            <div class="flex justify-between items-center mb-2">
+                                <div>
+                                    <h4 class="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-1.5">
+                                        <i class="fa-solid fa-fire text-amber-500"></i> Activity & Fuel Heatmap
+                                    </h4>
+                                    <p class="text-[11px] text-gray-400">Hourly Log Density (06:00 – 22:00)</p>
+                                </div>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Heatmap</span>
+                            </div>
+                            <div class="h-60 relative w-full pt-2">
+                                <canvas id="chart-peak-hours"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                </section>
+
+                <!-- TAB 2: DAILY LOG & LEDGER -->
+                <section id="tab-records" class="tab-content hidden space-y-6">
+                    <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                            <div class="md:col-span-4 relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-gray-400 text-sm"></i>
+                                <input type="text" id="search-input" oninput="renderRecordsTable()" placeholder="Search ID, Workout, Food, Fruit, Beverage..." class="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm focus:outline-none">
+                            </div>
+                            <div class="md:col-span-3">
+                                <select id="filter-category" onchange="renderRecordsTable()" class="w-full py-2.5 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm font-medium">
+                                    <option value="ALL">All Categories</option>
+                                    <option value="WORKOUT">Workout Routine</option>
+                                    <option value="FOOD">Food / Meal</option>
+                                    <option value="SNACK">Healthy Snack</option>
+                                    <option value="FRUIT">Fresh Fruit</option>
+                                    <option value="BEVERAGE">Clean Beverage (0g Added Sugar)</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-2">
+                                <select id="filter-sugar" onchange="renderRecordsTable()" class="w-full py-2.5 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm font-medium">
+                                    <option value="ALL">All Sugar Status</option>
+                                    <option value="0g Added Sugar">Sugar Free</option>
+                                    <option value="Natural Fruit Sugar">Fruit Sugar</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-3">
+                                <select id="sort-select" onchange="renderRecordsTable()" class="w-full py-2.5 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm font-medium">
+                                    <option value="date-desc">Date (Newest First)</option>
+                                    <option value="date-asc">Date (Oldest First)</option>
+                                    <option value="cal-desc">Calories (High to Low)</option>
+                                    <option value="name-asc">Item Name (A - Z)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap items-center justify-between gap-2 text-xs pt-2 border-t border-gray-100 dark:border-gray-800">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-gray-500 font-medium">Date Range:</span>
+                                <input type="date" id="filter-date-from" onchange="renderRecordsTable()" class="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1">
+                                <span>to</span>
+                                <input type="date" id="filter-date-to" onchange="renderRecordsTable()" class="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1">
+                                <button onclick="clearDateFilter()" class="text-red-500 hover:underline ml-1">Reset</button>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <button onclick="exportLedgerCSV()" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-bold text-gray-700 dark:text-gray-300">
+                                    <i class="fa-solid fa-file-csv mr-1"></i> Export CSV
+                                </button>
+                                <span class="text-gray-500 font-medium">Showing <span id="records-count" class="font-bold text-emerald-600">0</span> logs</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse text-sm min-w-[920px]">
+                                <thead>
+                                    <tr class="bg-gray-50 dark:bg-gray-800/60 text-gray-500 font-semibold text-xs uppercase border-b border-gray-200 dark:border-gray-800">
+                                        <th class="py-3.5 px-4">Log ID</th>
+                                        <th class="py-3.5 px-4">Date & Time</th>
+                                        <th class="py-3.5 px-4">Category</th>
+                                        <th class="py-3.5 px-4">Routine / Food / Drink</th>
+                                        <th class="py-3.5 px-4">Portion / Duration</th>
+                                        <th class="py-3.5 px-4">Calories</th>
+                                        <th class="py-3.5 px-4">Macros / Hydration</th>
+                                        <th class="py-3.5 px-4">Sugar Compliance</th>
+                                        <th class="py-3.5 px-4 text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="records-table-body" class="divide-y divide-gray-100 dark:divide-gray-800 text-gray-700 dark:text-gray-300"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 3: LOG ROUTINE & NUTRITION -->
+                <section id="tab-entry" class="tab-content hidden max-w-4xl mx-auto space-y-6">
+                    <!-- Structured Entry Form -->
+                    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 lg:p-8 shadow-md">
+                        <div class="flex items-center justify-between pb-6 border-b border-gray-200 dark:border-gray-800 mb-6">
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-900 dark:text-white" id="entry-form-title">Log Fitness Routine or Clean Nutrition</h3>
+                                <p class="text-xs text-gray-500">Track workouts, whole foods, healthy snacks, fresh fruits, and beverages strictly free of added artificial sugars.</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="switchTab('pantry')" class="text-xs font-bold text-emerald-600 hover:text-emerald-700 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-900">Manage Pantry</button>
+                                <button type="button" onclick="resetEntryForm(); switchTab('records');" class="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                            </div>
+                        </div>
+
+                        <form id="fnt-entry-form" onsubmit="handleEntrySubmit(event)" class="space-y-6">
+                            <input type="hidden" id="editing-record-id" value="">
+
+                            <input type="hidden" id="entry-category" value="WORKOUT">
+
+                            <!-- Zero-Added-Sugar Guardrail Banner (Shown for Beverage / Nutrition) -->
+                            <div id="sugar-guardrail-banner" class="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 flex items-start gap-3">
+                                <i class="fa-solid fa-shield-check text-emerald-500 text-base mt-0.5"></i>
+                                <div class="text-xs">
+                                    <p class="font-bold text-emerald-600 dark:text-emerald-400" id="sugar-guardrail-title">Zero Added Artificial Sugar Policy Active</p>
+                                    <p class="text-gray-500 dark:text-gray-400 mt-0.5" id="sugar-guardrail-desc">Only clean, unrefined beverages (water, sparkling water, unsweetened tea/coffee, pure infusions) and whole foods are permitted.</p>
+                                </div>
+                            </div>
+
+                            <!-- Beverage Quick Clean Presets (Visible when BEVERAGE is selected) -->
+                            <div id="beverage-clean-presets" class="hidden space-y-2">
+                                <label class="block text-[11px] font-bold uppercase text-blue-600 dark:text-blue-400">Approved Clean Beverage Presets (0g Added Sugar)</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" onclick="applyBeveragePreset('Pure Mineral Water', 500, 0)" class="px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-300 border border-blue-500/20 text-xs font-semibold">💧 Pure Water (500ml)</button>
+                                    <button type="button" onclick="applyBeveragePreset('Unsweetened Green Tea', 350, 2)" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 border border-emerald-500/20 text-xs font-semibold">🍵 Unsweetened Green Tea (350ml)</button>
+                                    <button type="button" onclick="applyBeveragePreset('Black Coffee (No Sugar)', 250, 5)" class="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/20 text-xs font-semibold">☕ Black Coffee (250ml)</button>
+                                    <button type="button" onclick="applyBeveragePreset('Sparkling Lemon & Mint Water', 500, 5)" class="px-3 py-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 text-teal-600 dark:text-teal-300 border border-teal-500/20 text-xs font-semibold">🍋 Lemon Mint Sparkling (500ml)</button>
+                                    <button type="button" onclick="applyBeveragePreset('100% Pure Unsweetened Coconut Water', 330, 60)" class="px-3 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-500/20 text-xs font-semibold">🥥 Pure Coconut Water (330ml)</button>
+                                </div>
+                            </div>
+
+                            <!-- Core Input Fields -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-gray-700 dark:text-gray-300 mb-2" id="label-item-name">Workout / Exercise Name *</label>
+                                    <div id="food-picker-wrap" class="hidden mb-2 rounded-xl border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-900/10 p-3">
+                                        <div class="flex items-center justify-between gap-2 mb-2">
+                                            <p class="text-xs font-bold text-emerald-700 dark:text-emerald-300">Choose meal items</p>
+                                            <button type="button" onclick="openFoodListManager()" class="px-2.5 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold"><i class="fa-solid fa-list-check mr-1"></i>Manage list</button>
+                                        </div>
+                                        <input id="food-list-search" type="search" oninput="renderFoodChoices()" placeholder="Search items..." class="w-full mb-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs">
+                                        <div id="food-choice-list" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-36 overflow-y-auto"></div>
+                                        <div id="food-quantity-list" class="mt-3 space-y-2"></div>
+                                        <div id="food-nutrition-summary" class="hidden mt-3 rounded-lg bg-white dark:bg-gray-900 border border-emerald-200 dark:border-emerald-900 p-3 text-[11px]"></div>
+                                        <p class="text-[10px] text-gray-500 mt-2">Select each ingredient, enter the amount you ate in grams, and FNT will calculate the meal totals. Nutrition values are estimates per 100 g unless you enter verified label/recipe data.</p>
+                                    </div>
+                                    <input type="text" id="entry-name" required oninput="checkArtificialSugarGuardrail()" placeholder="e.g. Full Body Strength / 5km Run" class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm">
+                                    <p id="sugar-warning-inline" class="hidden text-[11px] font-bold text-rose-500 mt-1.5"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Added/artificial sugar detected! FNT only logs clean, zero-added-sugar beverages.</p>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-gray-700 dark:text-gray-300 mb-2" id="label-sub-type">Workout Type / Meal Slot *</label>
+                                    <select id="entry-sub-type" class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm font-bold text-emerald-600">
+                                        <!-- Dynamically populated per category -->
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-gray-700 dark:text-gray-300 mb-2" id="label-portion">Duration (Minutes) *</label>
+                                    <input type="text" id="entry-portion" required placeholder="e.g. 45 mins" class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm">
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-gray-700 dark:text-gray-300 mb-2" id="label-calories">Calories Burned (kcal) *</label>
+                                    <input type="number" id="entry-calories" min="0" step="any" required placeholder="350" class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm font-semibold">
+                                </div>
+
+                                <!-- Nutrition / Hydration Specific Fields -->
+                                <div id="nutrition-macros-row" class="hidden sm:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <div>
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Protein (g)</label>
+                                        <input type="number" id="entry-protein" min="0" step="any" value="0" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-xs font-bold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Clean Carbs (g)</label>
+                                        <input type="number" id="entry-carbs" min="0" step="any" value="0" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-xs font-bold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Healthy Fats (g)</label>
+                                        <input type="number" id="entry-fats" min="0" step="any" value="0" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-xs font-bold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold uppercase text-blue-500 mb-1">Hydration Volume (ml)</label>
+                                        <input type="number" id="entry-water-ml" min="0" step="10" value="0" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-xs font-bold text-blue-500">
+                                    </div>
+                                </div>
+
+                                <!-- Workout Intensity & Duration Minutes (Visible when WORKOUT is selected) -->
+                                <div id="workout-metrics-row" class="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <div>
+                                        <label class="block text-[10px] font-bold uppercase text-teal-600 dark:text-teal-400 mb-1">Active Duration (Minutes) *</label>
+                                        <input type="number" id="entry-duration-mins" min="1" step="1" value="45" oninput="syncWorkoutDurationLabel()" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-xs font-bold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Intensity Level</label>
+                                        <select id="entry-intensity" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-xs font-semibold">
+                                            <option value="Low / Recovery">Low / Active Recovery</option>
+                                            <option value="Moderate" selected>Moderate / Steady State</option>
+                                            <option value="High Intensity">High Intensity / Vigorous</option>
+                                            <option value="Peak / PR Effort">Peak / Max Effort</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-gray-700 dark:text-gray-300 mb-2">Date & Time *</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input type="date" id="entry-date" required class="px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs">
+                                        <input type="time" id="entry-time" required class="px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-xs">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-gray-700 dark:text-gray-300 mb-2">Sugar & Cleanliness Verification</label>
+                                    <div class="px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-between">
+                                        <span id="entry-sugar-badge-preview"><i class="fa-solid fa-check-circle mr-1.5"></i> 0g Added Artificial Sugar</span>
+                                        <span class="font-mono text-[10px]">VERIFIED</span>
+                                    </div>
+                                </div>
+
+                                <div class="sm:col-span-2">
+                                    <label class="block text-xs font-bold uppercase text-gray-700 dark:text-gray-300 mb-2">Workout Sets / Ingredients / Notes</label>
+                                    <textarea id="entry-notes" rows="2" placeholder="e.g. 4x10 Squats, 3x12 Pushups OR Grilled chicken breast, avocado, steamed broccoli, olive oil..." class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-sm"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
+                                <button type="submit" id="form-submit-btn" class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-lg transition">Save Log Entry</button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- TAB 4: WORKOUT ROUTINE PLANNER -->
+                <section id="tab-planner" class="tab-content hidden max-w-6xl mx-auto space-y-6">
+                    <div class="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Weekly Physically Fit Routine Planner</h3>
+                                <p class="text-xs text-gray-500">Schedule your weekly training splits and log completed sessions with a single click.</p>
+                            </div>
+                            <button onclick="openRoutineModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow transition">
+                                <i class="fa-solid fa-plus"></i> Add Routine Slot
+                            </button>
+                        </div>
+
+                        <div id="workout-planner-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                    </div>
+                </section>
+
+                <!-- TAB 5: CLEAN FUEL & SUGAR-FREE PANTRY -->
+                <section id="tab-pantry" class="tab-content hidden max-w-6xl mx-auto space-y-6">
+                    <div class="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Pantry Categories</h3>
+                                <p class="text-xs text-gray-500">Choose FOOD, FRUIT, SNACK or BEVERAGE to manage and log your items.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <select id="pantry-filter-cat" class="hidden"><option value="FOOD">FOOD</option><option value="FRUIT">FRUIT</option><option value="SNACK">SNACK</option><option value="BEVERAGE">BEVERAGE</option></select>
+                                <div class="flex flex-wrap gap-1.5 p-1 rounded-xl bg-gray-100 dark:bg-gray-800">
+                                    <button type="button" onclick="setPantryCategory('FOOD')" id="pantry-tab-food" class="pantry-category-btn px-3 py-2 rounded-lg text-xs font-extrabold">FOOD</button>
+                                    <button type="button" onclick="setPantryCategory('FRUIT')" id="pantry-tab-fruit" class="pantry-category-btn px-3 py-2 rounded-lg text-xs font-extrabold">FRUIT</button>
+                                    <button type="button" onclick="setPantryCategory('SNACK')" id="pantry-tab-snack" class="pantry-category-btn px-3 py-2 rounded-lg text-xs font-extrabold">SNACK</button>
+                                    <button type="button" onclick="setPantryCategory('BEVERAGE')" id="pantry-tab-beverage" class="pantry-category-btn px-3 py-2 rounded-lg text-xs font-extrabold">BEVERAGE</button>
+                                </div>
+                                <button onclick="openPantryModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow"><i class="fa-solid fa-plus"></i> Add Custom Item</button>
+                            </div>
+                        </div>
+
+                        <div id="pantry-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                    </div>
+                </section>
+
+                <!-- TAB 7: PROGRESS REPORTS & PDF EXPORT -->
+                <section id="tab-reports" class="tab-content hidden space-y-6">
+                    <div class="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4 no-print">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Fitness & Clean Nutrition Progress Report</h3>
+                                <p class="text-xs text-gray-500">Export formatted A4 PDF summaries of your workouts, meals, snacks, fruits, and sugar-free hydration.</p>
+                            </div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <button onclick="exportReportToPDF()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 rounded-xl text-xs font-bold text-white shadow transition flex items-center gap-2">
+                                    <i class="fa-solid fa-file-pdf"></i> Download PDF Report
+                                </button>
+                                <button onclick="window.print()" class="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow transition">
+                                    <i class="fa-solid fa-print"></i> Print Report
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                            <div>
+                                <label class="block text-[11px] font-bold uppercase text-gray-500 mb-1">Report Timeframe</label>
+                                <select id="report-preset" onchange="renderReportPreview()" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-xs font-medium">
+                                    <option value="today" selected>Today Only</option>
+                                    <option value="week">Last 7 Days</option>
+                                    <option value="month">Last 30 Days</option>
+                                    <option value="all">All Logged History</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold uppercase text-gray-500 mb-1">Report Subtitle / Focus</label>
+                                <input type="text" id="report-custom-memo" oninput="renderReportPreview()" value="Fitness Routine & Clean Nutrition Summary" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold uppercase text-gray-500 mb-1">Athlete / User Name</label>
+                                <input type="text" id="report-custom-author" oninput="renderReportPreview()" value="FNT Athlete" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-2 text-xs">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Clean White Background Report Preview Document -->
+                    <div class="flex justify-center">
+                        <div id="pdf-report-document" class="w-full max-w-[210mm] bg-white text-gray-900 p-6 sm:p-8 rounded-2xl border border-gray-200 shadow-xl space-y-5">
+                            <div class="flex justify-between items-start border-b-2 border-emerald-500 pb-5">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-base shadow">
+                                        FNT
+                                    </div>
+                                    <div>
+                                        <h1 class="text-2xl font-black tracking-tight text-gray-900">FNT — FITNESS NUTRITION TRACKER</h1>
+                                        <p class="text-xs font-bold text-emerald-600 uppercase" id="pdf-header-subtitle">Fitness Routine & Clean Nutrition Summary</p>
+                                    </div>
+                                </div>
+                                <div class="text-right text-xs text-gray-500 space-y-1">
+                                    <p>Generated: <span id="pdf-generated-at" class="text-gray-900 font-medium">--</span></p>
+                                    <p>Policy: <span class="text-emerald-600 font-bold">0g Added Sugar Verified</span></p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 text-center">
+                                <div>
+                                    <p class="text-[10px] uppercase font-bold text-gray-500">Calories Intake</p>
+                                    <p class="text-base font-black text-emerald-600 mt-1" id="pdf-cal-in">0 kcal</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] uppercase font-bold text-gray-500">Calories Burned</p>
+                                    <p class="text-base font-black text-rose-600 mt-1" id="pdf-cal-out">0 kcal</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] uppercase font-bold text-gray-500">Total Protein</p>
+                                    <p class="text-base font-black text-gray-900 mt-1" id="pdf-protein">0 g</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] uppercase font-bold text-gray-500">Clean Hydration</p>
+                                    <p class="text-base font-black text-blue-600 mt-1" id="pdf-hydration">0.00 L</p>
+                                </div>
+                            </div>
+
+                            <!-- Workout & Clean Nutrition Breakdown -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div class="border border-teal-200 rounded-xl p-4 bg-teal-50/20 space-y-2">
+                                    <div class="flex justify-between items-center border-b border-teal-200 pb-2">
+                                        <h5 class="font-black text-xs text-teal-800 uppercase"><i class="fa-solid fa-dumbbell mr-1"></i> Workout Routines</h5>
+                                        <span class="text-xs font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-full" id="pdf-workout-badge">0 mins</span>
+                                    </div>
+                                    <table class="w-full text-left text-[11px]">
+                                        <thead><tr class="text-gray-500 uppercase text-[9px] border-b border-gray-200"><th class="py-1">Routine</th><th class="py-1">Duration</th><th class="py-1 text-right">Burned</th></tr></thead>
+                                        <tbody id="pdf-workouts-tbody" class="divide-y divide-gray-100"></tbody>
+                                    </table>
+                                </div>
+
+                                <div class="border border-blue-200 rounded-xl p-4 bg-blue-50/20 space-y-2">
+                                    <div class="flex justify-between items-center border-b border-blue-200 pb-2">
+                                        <h5 class="font-black text-xs text-blue-800 uppercase"><i class="fa-solid fa-glass-water mr-1"></i> Clean Beverages (0g Added Sugar)</h5>
+                                        <span class="text-xs font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full" id="pdf-drinks-badge">0 ml</span>
+                                    </div>
+                                    <table class="w-full text-left text-[11px]">
+                                        <thead><tr class="text-gray-500 uppercase text-[9px] border-b border-gray-200"><th class="py-1">Beverage</th><th class="py-1">Volume</th><th class="py-1 text-right">Status</th></tr></thead>
+                                        <tbody id="pdf-drinks-tbody" class="divide-y divide-gray-100"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="border border-emerald-200 rounded-xl p-4 bg-emerald-50/20 space-y-2">
+                                <div class="flex justify-between items-center border-b border-emerald-200 pb-2">
+                                    <h5 class="font-black text-xs text-emerald-800 uppercase"><i class="fa-solid fa-utensils mr-1"></i> Food, Healthy Snacks & Fresh Fruits</h5>
+                                    <span class="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full" id="pdf-nutrition-badge">0 items</span>
+                                </div>
+                                <table class="w-full text-left text-[11px]">
+                                    <thead><tr class="text-gray-500 uppercase text-[9px] border-b border-gray-200"><th class="py-1">Category</th><th class="py-1">Item</th><th class="py-1">Portion</th><th class="py-1 text-right">Calories / Protein</th></tr></thead>
+                                    <tbody id="pdf-nutrition-tbody" class="divide-y divide-gray-100"></tbody>
+                                </table>
+                            </div>
+
+                            <div class="pt-4 border-t border-gray-200 flex justify-between items-center text-xs text-gray-500">
+                                <p>Prepared for: <span id="pdf-footer-author" class="text-gray-900 font-semibold">FNT Athlete</span></p>
+                                <p class="font-mono text-[10px]">FNT — Fitness Nutrition Tracker</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 8: GOALS -->
+                <section id="tab-goals" class="tab-content hidden max-w-4xl mx-auto space-y-6">
+                    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 lg:p-8 shadow-sm space-y-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900 dark:text-white">Fitness & Nutrition Goals</h3>
+                            <p class="text-xs text-gray-500">Set and update your daily fitness, nutrition, hydration and workout targets.</p>
+                        </div>
+                        <!-- Daily Targets -->
+                        <form onsubmit="saveTargets(event)" class="p-5 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-4">
+                            <h4 class="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-bullseye text-emerald-500"></i> Daily Fitness & Clean Nutrition Targets
+                            </h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+                                <div>
+                                    <label class="block font-bold uppercase text-gray-500 mb-1">Fitness Goal</label>
+                                    <select id="set-goal-mode" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl font-semibold">
+                                        <option value="Clean Maintenance">Clean Maintenance</option>
+                                        <option value="Lean Muscle Gain">Lean Muscle Gain</option>
+                                        <option value="Fat Loss & Conditioning">Fat Loss & Conditioning</option>
+                                        <option value="Endurance & Stamina">Endurance & Stamina</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block font-bold uppercase text-gray-500 mb-1">Calorie Target (kcal)</label>
+                                    <input type="number" id="set-cal-goal" min="1000" max="6000" value="2200" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl font-bold">
+                                </div>
+                                <div>
+                                    <label class="block font-bold uppercase text-gray-500 mb-1">Protein Target (g)</label>
+                                    <input type="number" id="set-protein-goal" min="30" max="400" value="140" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl font-bold">
+                                </div>
+                                <div>
+                                    <label class="block font-bold uppercase text-gray-500 mb-1">Hydration Goal (ml)</label>
+                                    <input type="number" id="set-water-goal" min="500" max="8000" step="100" value="3000" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl font-bold">
+                                </div>
+                                <div>
+                                    <label class="block font-bold uppercase text-gray-500 mb-1">Workout Goal (mins)</label>
+                                    <input type="number" id="set-workout-goal" min="10" max="300" value="45" class="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl font-bold">
+                                </div>
+                            </div>
+                            <div class="flex justify-end">
+                                <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow">Save Targets</button>
+                            </div>
+                        </form>
+
+                    </div>
+                </section>
+
+                <!-- TAB 9: APP SETTINGS -->
+                <section id="tab-settings" class="tab-content hidden max-w-4xl mx-auto space-y-6">
+                    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 lg:p-8 shadow-sm space-y-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900 dark:text-white">App Settings</h3>
+                            <p class="text-xs text-gray-500">Customize the application appearance, text size and local data backup.</p>
+                        </div>
+
+                        <!-- Theme Toggle -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-5 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700">
+                            <div>
+                                <h4 class="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-moon text-indigo-500"></i> App Theme Appearance
+                                </h4>
+                                <p class="text-xs text-gray-500">Switch between Dark Mode and Light Mode interface.</p>
+                            </div>
+                            <button onclick="toggleTheme()" class="px-4 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white text-xs font-bold rounded-xl flex items-center gap-2 transition">
+                                <i class="fa-solid fa-circle-half-stroke"></i> Toggle Dark / Light Theme
+                            </button>
+                        </div>
+
+                        <!-- Font Size Setting -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-5 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700">
+                            <div>
+                                <h4 class="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-font text-blue-500"></i> Application Font Size
+                                </h4>
+                                <p class="text-xs text-gray-500">Adjust the readability scale of the user interface text.</p>
+                            </div>
+                            <select id="settings-fontsize-select" onchange="changeFontSize(this.value)" class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-xs font-bold rounded-xl px-4 py-2.5 focus:outline-none">
+                                <option value="sm">Compact (Small)</option>
+                                <option value="md" selected>Default (Normal)</option>
+                                <option value="lg">Comfortable (Large)</option>
+                            </select>
+                        </div>
+
+                        <!-- Backup & Restore Data -->
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-5 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700">
+                            <div>
+                                <h4 class="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-database text-emerald-500"></i> Export / Import Local JSON Backup
+                                </h4>
+                                <p class="text-xs text-gray-500">All FNT logs are stored locally in your browser. Export a backup anytime.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="exportJSONBackup()" class="px-4 py-2.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 text-gray-800 dark:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition">
+                                    <i class="fa-solid fa-download"></i> Export JSON
+                                </button>
+                                <button onclick="document.getElementById('import-file-input').click()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition">
+                                    <i class="fa-solid fa-upload"></i> Import JSON
+                                </button>
+                                <input type="file" id="import-file-input" accept=".json" class="hidden" onchange="importJSONBackup(event)">
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD WORKOUT ROUTINE SLOT -->
+    <div id="routine-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
+            <div class="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-800">
+                <h3 class="font-bold text-gray-900 dark:text-white text-base">Add Workout Routine Slot</h3>
+                <button onclick="closeRoutineModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleRoutineSubmit(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold uppercase text-gray-500 mb-1">Day of Week *</label>
+                    <select id="rt-day" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl font-bold">
+                        <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold uppercase text-gray-500 mb-1">Routine Title *</label>
+                    <input type="text" id="rt-title" required placeholder="e.g. Upper Body Strength & Core" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold uppercase text-gray-500 mb-1">Focus Type</label>
+                        <select id="rt-type" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl">
+                            <option>Strength Training</option><option>Cardio / Running</option><option>HIIT Conditioning</option><option>Yoga & Mobility</option><option>Sports / Endurance</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold uppercase text-gray-500 mb-1">Target Duration (mins)</label>
+                        <input type="number" id="rt-mins" min="5" value="45" required class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl font-bold">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-bold uppercase text-gray-500 mb-1">Estimated Burn (kcal)</label>
+                    <input type="number" id="rt-kcal" min="10" value="320" required class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl font-bold">
+                </div>
+                <div>
+                    <label class="block font-bold uppercase text-gray-500 mb-1">Exercises & Sets</label>
+                    <textarea id="rt-exercises" rows="2" placeholder="e.g. Pull-ups 4x8, Dumbbell Press 4x10, Plank 3x60s" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl"></textarea>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeRoutineModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-xl font-bold">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold">Save Routine</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD CLEAN PANTRY ITEM -->
+    <div id="pantry-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
+            <div class="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-800">
+                <h3 id="pantry-modal-title" class="font-bold text-gray-900 dark:text-white text-base">Add Pantry Item</h3>
+                <button onclick="closePantryModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="pantry-item-form" onsubmit="handlePantrySubmit(event)" class="space-y-3 text-xs"><input type="hidden" id="pn-edit-id" value="">
+                <div>
+                    <label class="block font-bold uppercase text-gray-500 mb-1">Category *</label>
+                    <select id="pn-cat" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl font-bold">
+                        <option value="FOOD">Food / Meal</option>
+                        <option value="SNACK">Healthy Snack</option>
+                        <option value="FRUIT">Fresh Fruit</option>
+                        <option value="BEVERAGE">Clean Beverage (0g Added Sugar)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold uppercase text-gray-500 mb-1">Item Name *</label>
+                    <input type="text" id="pn-name" required placeholder="e.g. Unsweetened Hibiscus Tea" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold uppercase text-gray-500 mb-1">Serving Size *</label>
+                        <input type="text" id="pn-portion" required placeholder="e.g. 400 ml / 1 bowl" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl">
+                    </div>
+                    <div>
+                        <label class="block font-bold uppercase text-gray-500 mb-1">Calories (kcal)</label>
+                        <input type="number" id="pn-cal" min="0" value="0" required class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl font-bold">
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-2">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Protein (g)</label>
+                        <input type="number" id="pn-pro" min="0" value="0" class="w-full px-2 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Clean Carbs (g)</label>
+                        <input type="number" id="pn-carb" min="0" value="0" class="w-full px-2 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-gray-500 mb-1">Healthy Fats (g)</label>
+                        <input type="number" id="pn-fat" min="0" value="0" class="w-full px-2 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase text-blue-500 mb-1">Hydration Volume (ml)</label>
+                        <input type="number" id="pn-water" min="0" value="0" class="w-full px-2 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg font-bold">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closePantryModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-xl font-bold">Cancel</button>
+                    <button id="pantry-submit-btn" type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold">Add to Pantry</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: MANAGE FOOD / FRUIT / SNACK LIST -->
+    <div id="food-list-modal" class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
+            <div class="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-800">
+                <div><h3 class="font-bold text-gray-900 dark:text-white text-base">Manage item list</h3><p class="text-[10px] text-gray-500">Add new choices or remove items you no longer use.</p></div>
+                <button type="button" onclick="closeFoodListManager()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="addFoodCatalogItem(event)" class="space-y-2">
+                <input id="new-food-list-item" type="text" required maxlength="60" placeholder="Enter a new item name" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm">
+                <p class="text-[10px] font-bold uppercase text-gray-500">Nutrition per 100 g (optional; use a food label or recipe estimate)</p>
+                <div class="grid grid-cols-4 gap-2">
+                    <input id="new-food-cal" type="number" min="0" step="0.1" placeholder="kcal" title="Calories per 100 g" class="min-w-0 w-full px-2 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs">
+                    <input id="new-food-pro" type="number" min="0" step="0.1" placeholder="Protein g" title="Protein per 100 g" class="min-w-0 w-full px-2 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs">
+                    <input id="new-food-carb" type="number" min="0" step="0.1" placeholder="Carbs g" title="Carbs per 100 g" class="min-w-0 w-full px-2 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs">
+                    <input id="new-food-fat" type="number" min="0" step="0.1" placeholder="Fats g" title="Fat per 100 g" class="min-w-0 w-full px-2 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs">
+                </div>
+                <button type="submit" class="w-full px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold"><i class="fa-solid fa-plus mr-1"></i>Add item to list</button>
+            </form>
+            <div id="managed-food-items" class="max-h-64 overflow-y-auto space-y-1"></div>
+            <div class="flex justify-end"><button type="button" onclick="closeFoodListManager()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-xl text-xs font-bold">Done</button></div>
+        </div>
+    </div>
+
+    <!-- MODAL: VIEW SINGLE LOG DETAILS -->
+    <div id="view-record-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
+            <div class="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-800">
+                <h3 class="font-bold text-gray-900 dark:text-white text-base">FNT Log Entry Details</h3>
+                <button onclick="closeViewRecordModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div id="view-modal-body" class="space-y-2.5 text-xs"></div>
+            <div class="flex justify-end pt-2 border-t border-gray-200 dark:border-gray-800">
+                <button onclick="closeViewRecordModal()" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-xl text-xs font-bold">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT APPLICATION LOGIC -->
+    <script>
+        let state = {
+            fontSize: 'md',
+            goals: {
+                mode: 'Clean Maintenance',
+                calories: 2200,
+                protein: 140,
+                waterMl: 3000,
+                workoutMins: 45
+            },
+            logs: [],
+            routines: [],
+            pantry: [],
+            foodCatalog: null,
+            foodNutrition: {}
+        };
+
+        let calorieChart = null;
+        let peakChart = null;
+
+        // Banned added/artificial sugar keywords for clean beverage & food enforcement
+        const BANNED_SUGAR_TERMS = [
+            'soda', 'cola', 'pepsi', 'coke', 'fanta', 'sprite', 'energy drink', 'red bull', 'monster',
+            'corn syrup', 'hfcs', 'aspartame', 'sucralose', 'saccharin', 'acesulfame', 'sweetened',
+            'cane sugar', 'white sugar', 'brown sugar', 'syrup', 'milkshake', 'bubble tea', 'boba', 'candy'
+        ];
+
+        window.onload = function() {
+            initLiveClock();
+            setDefaultDateTime();
+
+            try {
+                const saved = localStorage.getItem('fnt_offline_state_v1');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    state = {
+                        fontSize: parsed.fontSize || 'md',
+                        goals: { ...state.goals, ...(parsed.goals || {}) },
+                        logs: Array.isArray(parsed.logs) ? parsed.logs : [],
+                        routines: Array.isArray(parsed.routines) ? parsed.routines : [],
+                        pantry: Array.isArray(parsed.pantry) ? parsed.pantry : [],
+                        foodCatalog: parsed.foodCatalog && typeof parsed.foodCatalog === 'object' ? parsed.foodCatalog : null,
+                        foodNutrition: parsed.foodNutrition && typeof parsed.foodNutrition === 'object' ? parsed.foodNutrition : {}
+                    };
+                }
+            } catch (e) {
+                console.error('Error reading local state:', e);
+            }
+
+            if (state.logs.length === 0 && state.pantry.length === 0 && state.routines.length === 0) {
+                seedInitialData();
+            }
+
+            const usedLogIds = new Set();
+            (state.logs || []).forEach(log => { if (!/^FNT-[A-Z]{6}$/.test(log.id || '') || usedLogIds.has(log.id)) log.id = generateFntLogId(usedLogIds); usedLogIds.add(log.id); });
+            saveState();
+            selectEntryCategory('WORKOUT');
+            refreshAllViews();
+            switchTab('dashboard');
+        };
+
+        function generateFntLogId(existing = new Set()) {
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'; let id;
+            do { let suffix = ''; for (let i=0;i<6;i++) suffix += letters[Math.floor(Math.random()*letters.length)]; id = `FNT-${suffix}`; } while (existing.has(id));
+            return id;
+        }
+
+        function seedInitialData() {
+            const today = new Date().toISOString().split('T')[0];
+            const d1 = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+            const d2 = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
+
+            state.logs = [
+                { id: 'FNT-1001', date: today, time: '07:15', category: 'BEVERAGE', subType: 'Pure Hydration', name: 'Pure Mineral Water with Fresh Lemon', portion: '600 ml', calories: 5, protein: 0, carbs: 1, fats: 0, waterMl: 600, durationMins: 0, sugarStatus: '0g Added Sugar', notes: 'Morning fasted hydration.' },
+                { id: 'FNT-1002', date: today, time: '07:45', category: 'WORKOUT', subType: 'Strength Training', name: 'Upper Body Push & Core Circuit', portion: '45 mins', calories: 340, protein: 0, carbs: 0, fats: 0, waterMl: 0, durationMins: 45, intensity: 'High Intensity', sugarStatus: '0g Added Sugar', notes: '4x10 Incline Press, 4x12 Rows, 3x60s Plank' },
+                { id: 'FNT-1003', date: today, time: '09:00', category: 'FOOD', subType: 'Breakfast', name: '3 Pasture-Raised Eggs, Avocado & Spinach Bowl', portion: '1 large bowl', calories: 480, protein: 28, carbs: 14, fats: 34, waterMl: 0, durationMins: 0, sugarStatus: '0g Added Sugar', notes: 'Cooked in extra-virgin olive oil.' },
+                { id: 'FNT-1004', date: today, time: '11:30', category: 'FRUIT', subType: 'Fresh Whole Fruit', name: 'Organic Blueberries & 1 Medium Banana', portion: '180 g', calories: 145, protein: 2, carbs: 36, fats: 0.5, waterMl: 80, durationMins: 0, sugarStatus: 'Natural Fruit Sugar', notes: 'Rich in antioxidants, potassium & natural fiber.' },
+                { id: 'FNT-1005', date: today, time: '13:30', category: 'FOOD', subType: 'Lunch', name: 'Grilled Tilapia, Quinoa & Steamed Broccoli', portion: '420 g', calories: 560, protein: 48, carbs: 46, fats: 18, waterMl: 0, durationMins: 0, sugarStatus: '0g Added Sugar', notes: 'Seasoned with garlic, herbs & lemon.' },
+                { id: 'FNT-1006', date: today, time: '15:15', category: 'BEVERAGE', subType: 'Unsweetened Tea', name: 'Unsweetened Matcha Green Tea', portion: '350 ml', calories: 5, protein: 0, carbs: 1, fats: 0, waterMl: 350, durationMins: 0, sugarStatus: '0g Added Sugar', notes: 'Clean afternoon focus, zero sugar.' },
+                { id: 'FNT-1007', date: today, time: '16:45', category: 'SNACK', subType: 'Whole-Food Snack', name: 'Raw Almonds, Walnuts & Pumpkin Seeds Mix', portion: '40 g handful', calories: 235, protein: 8, carbs: 6, fats: 20, waterMl: 0, durationMins: 0, sugarStatus: '0g Added Sugar', notes: 'Unroasted, unsalted whole nuts.' },
+                { id: 'FNT-0998', date: d1, time: '17:30', category: 'WORKOUT', subType: 'Cardio / Running', name: '5km Steady Tempo Run', portion: '32 mins', calories: 390, protein: 0, carbs: 0, fats: 0, waterMl: 0, durationMins: 32, intensity: 'Moderate', sugarStatus: '0g Added Sugar', notes: 'Avg pace 6:20/km' },
+                { id: 'FNT-0999', date: d1, time: '19:00', category: 'FOOD', subType: 'Dinner', name: 'Herb Roasted Chicken Breast & Sweet Potato', portion: '450 g', calories: 610, protein: 52, carbs: 50, fats: 20, waterMl: 0, durationMins: 0, sugarStatus: '0g Added Sugar', notes: 'Clean post-run recovery meal.' },
+                { id: 'FNT-0995', date: d2, time: '18:00', category: 'FOOD', subType: 'Dinner', name: 'Wild Salmon, Asparagus & Brown Rice', portion: '440 g', calories: 640, protein: 46, carbs: 48, fats: 26, waterMl: 0, durationMins: 0, sugarStatus: '0g Added Sugar', notes: 'Omega-3 rich clean meal.' }
+            ];
+
+            state.routines = [
+                { id: 'RT-1', day: 'Monday', title: 'Upper Body Push & Core', type: 'Strength Training', mins: 45, kcal: 340, completed: true, exercises: 'Push-ups 4x15, Dumbbell Shoulder Press 4x10, Dips 3x12, Plank 3x60s' },
+                { id: 'RT-2', day: 'Wednesday', title: '5km Endurance Tempo Run', type: 'Cardio / Running', mins: 35, kcal: 390, completed: false, exercises: '5 min dynamic warm-up, 25 min steady run, 5 min cool-down stretch' },
+                { id: 'RT-3', day: 'Friday', title: 'Lower Body & Posterior Chain', type: 'Strength Training', mins: 50, kcal: 410, completed: false, exercises: 'Goblet Squats 4x12, Romanian Deadlifts 4x10, Walking Lunges 3x20' },
+                { id: 'RT-4', day: 'Saturday', title: 'HIIT Conditioning & Mobility', type: 'HIIT Conditioning', mins: 30, kcal: 330, completed: false, exercises: 'Burpees, Kettlebell Swings, Mountain Climbers (40s work / 20s rest)' }
+            ];
+
+            state.pantry = [
+                { id: 'PN-1', category: 'BEVERAGE', name: 'Pure Mineral Water', portion: '500 ml', calories: 0, protein: 0, carbs: 0, fats: 0, waterMl: 500 },
+                { id: 'PN-2', category: 'BEVERAGE', name: 'Unsweetened Green Tea', portion: '350 ml', calories: 2, protein: 0, carbs: 0, fats: 0, waterMl: 350 },
+                { id: 'PN-3', category: 'BEVERAGE', name: 'Black Coffee (No Sugar)', portion: '250 ml', calories: 5, protein: 0, carbs: 0, fats: 0, waterMl: 250 },
+                { id: 'PN-4', category: 'FRUIT', name: 'Fresh Organic Avocado', portion: '1/2 medium (100g)', calories: 160, protein: 2, carbs: 9, fats: 15, waterMl: 70 },
+                { id: 'PN-5', category: 'FRUIT', name: 'Fresh Berries Bowl (Strawberries & Blueberries)', portion: '150 g', calories: 65, protein: 1, carbs: 15, fats: 0.4, waterMl: 125 },
+                { id: 'PN-6', category: 'FRUIT', name: 'Crisp Red Apple', portion: '1 medium (180g)', calories: 95, protein: 0.5, carbs: 25, fats: 0.3, waterMl: 150 },
+                { id: 'PN-7', category: 'SNACK', name: 'Raw Almonds & Walnuts Handful', portion: '35 g', calories: 210, protein: 7, carbs: 5, fats: 18, waterMl: 0 },
+                { id: 'PN-8', category: 'SNACK', name: '2 Hard-Boiled Pasture Eggs', portion: '2 large eggs', calories: 155, protein: 13, carbs: 1, fats: 11, waterMl: 0 },
+                { id: 'PN-9', category: 'FOOD', name: 'Grilled Chicken Breast & Steamed Veggies', portion: '350 g', calories: 420, protein: 48, carbs: 18, fats: 14, waterMl: 0 }
+            ];
+
+            saveState();
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem('fnt_offline_state_v1', JSON.stringify(state));
+            } catch (e) {
+                console.error('Local save failed:', e);
+                showToast('Could not save locally. Please export a JSON backup.', 'alert');
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const bgClass = type === 'alert' ? 'bg-rose-600 text-white' : type === 'success' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-white';
+            const icon = type === 'alert' ? 'fa-triangle-exclamation' : type === 'success' ? 'fa-circle-check' : 'fa-circle-info';
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold ${bgClass} transition-all duration-300 transform translate-y-2 opacity-0`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-base"></i><span>${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        function escapeHtml(str) {
+            return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        function initLiveClock() {
+            const update = () => {
+                const now = new Date();
+                const t = document.getElementById('live-clock-time');
+                const d = document.getElementById('live-clock-date');
+                if (t) t.textContent = now.toLocaleTimeString();
+                if (d) d.textContent = now.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+            };
+            update();
+            setInterval(update, 1000);
+        }
+
+        function setDefaultDateTime() {
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const dateEl = document.getElementById('entry-date');
+            const timeEl = document.getElementById('entry-time');
+            if (dateEl) dateEl.value = todayStr;
+            if (timeEl) timeEl.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        }
+
+        function openEntryCategory(category) {
+            resetEntryForm();
+            switchTab('entry');
+            selectEntryCategory(category);
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('bg-emerald-500/10', 'text-emerald-600', 'dark:text-emerald-400'));
+            const navId = category === 'WORKOUT' ? 'nav-entry' : `nav-${category.toLowerCase()}`;
+            const activeNav = document.getElementById(navId);
+            if (activeNav) activeNav.classList.add('bg-emerald-500/10', 'text-emerald-600', 'dark:text-emerald-400');
+            const pageTitle = document.getElementById('page-title');
+            if (pageTitle) pageTitle.textContent = category === 'WORKOUT' ? 'WORKOUT' : category;
+            const formTitle = document.getElementById('entry-form-title');
+            if (formTitle) formTitle.textContent = category === 'WORKOUT' ? 'Log Workout' : `Log ${category}`;
+        }
+
+        function openPantryCategory(category) {
+            switchTab('pantry');
+            setPantryCategory(category);
+        }
+
+        function setPantryCategory(category) {
+            const filter = document.getElementById('pantry-filter-cat');
+            if (filter) filter.value = category;
+            document.querySelectorAll('.pantry-category-btn').forEach(btn => {
+                const active = btn.id === `pantry-tab-${category.toLowerCase()}`;
+                btn.classList.toggle('bg-white', active);
+                btn.classList.toggle('dark:bg-gray-700', active);
+                btn.classList.toggle('text-emerald-600', active);
+                btn.classList.toggle('shadow-sm', active);
+                btn.classList.toggle('text-gray-500', !active);
+            });
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('bg-emerald-500/10', 'text-emerald-600', 'dark:text-emerald-400'));
+            const nav = document.getElementById(`nav-${category.toLowerCase()}`);
+            if (nav) nav.classList.add('bg-emerald-500/10', 'text-emerald-600', 'dark:text-emerald-400');
+            const title = document.getElementById('page-title');
+            if (title) title.textContent = category;
+            renderPantryGrid();
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('bg-emerald-500/10', 'text-emerald-600', 'dark:text-emerald-400'));
+
+            const target = document.getElementById(`tab-${tabId}`);
+            if (target) target.classList.remove('hidden');
+
+            const navBtn = document.getElementById(`nav-${tabId}`);
+            if (navBtn) navBtn.classList.add('bg-emerald-500/10', 'text-emerald-600', 'dark:text-emerald-400');
+
+            const titles = {
+                dashboard: 'Fitness Dashboard',
+                records: 'Daily Log & Ledger',
+                entry: document.getElementById('editing-record-id')?.value ? 'Edit Log Entry' : (document.getElementById('entry-category')?.value || 'WORKOUT'),
+                planner: 'Workout Routine Planner',
+                pantry: document.getElementById('pantry-filter-cat')?.value || 'FOOD',
+                reports: 'Progress Reports & PDF Export',
+                goals: 'Goals',
+                settings: 'App Settings'
+            };
+            document.getElementById('page-title').textContent = titles[tabId] || 'FNT';
+
+            refreshAllViews();
+            if (window.innerWidth < 1024) {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+        }
+
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            renderDashboard();
+        }
+
+        function changeFontSize(size) {
+            state.fontSize = size;
+            saveState();
+            applyFontSize(size);
+            showToast('Font size updated.', 'success');
+        }
+
+        function applyFontSize(size) {
+            const htmlEl = document.documentElement;
+            htmlEl.classList.remove('text-size-sm', 'text-size-md', 'text-size-lg');
+            htmlEl.classList.add(`text-size-${size}`);
+        }
+
+        function refreshAllViews() {
+            applyFontSize(state.fontSize || 'md');
+            const fontSelect = document.getElementById('settings-fontsize-select');
+            if (fontSelect) fontSelect.value = state.fontSize || 'md';
+
+            // Populate Settings form
+            if (document.getElementById('set-goal-mode')) document.getElementById('set-goal-mode').value = state.goals.mode;
+            if (document.getElementById('set-cal-goal')) document.getElementById('set-cal-goal').value = state.goals.calories;
+            if (document.getElementById('set-protein-goal')) document.getElementById('set-protein-goal').value = state.goals.protein;
+            if (document.getElementById('set-water-goal')) document.getElementById('set-water-goal').value = state.goals.waterMl;
+            if (document.getElementById('set-workout-goal')) document.getElementById('set-workout-goal').value = state.goals.workoutMins;
+
+            renderDashboard();
+            renderRecordsTable();
+            renderPlannerGrid();
+            renderPantryGrid();
+            renderReportPreview();
+        }
+
+        // Food catalogue used by the daily entry dropdown. Users can still type custom items.
+        const FOOD_CATALOG = {
+            FOOD: [
+                'Rice', 'Spaghetti', 'Posho', 'Matoke', 'Beans', 'Cabbage', 'Dodo (Amaranth Greens)',
+                'Groundnut Sauce', 'Ugali', 'Boiled Eggs', 'Fried Eggs', 'Avocado',
+                'Sweet Potatoes', 'Irish Potatoes', 'Cassava', 'Isombe', 'Ibijumba', 'Peas',
+                'Chicken', 'Beef', 'Fish', 'Tilapia', 'Sardines', 'Milk', 'Plain Yogurt',
+                'Oats', 'Bread', 'Whole-wheat Bread', 'Chapati', 'Pumpkin', 'Carrots',
+                'Spinach', 'Broccoli', 'Tomatoes', 'Onions', 'Green Peas', 'Lentils',
+                'Sweetcorn', 'Eggplant', 'Mushrooms', 'Mixed Vegetables', 'Rice and Beans',
+                'Matoke and Beans', 'Ugali and Dodo', 'Rice and Groundnut Sauce'
+            ],
+            SNACK: [
+                'Fried Groundnuts', 'Roasted Groundnuts', 'Cashew Nuts', 'Almonds', 'Walnuts',
+                'Pumpkin Seeds', 'Sunflower Seeds', 'Boiled Egg', 'Avocado', 'Plain Yogurt',
+                'Boiled Sweet Potato', 'Boiled Cassava', 'Roasted Maize', 'Popcorn (Plain)',
+                'Banana and Groundnuts', 'Fruit Salad'
+            ],
+            FRUIT: [
+                'Yellow Banana', 'Mango', 'Orange', 'Avocado', 'Pineapple', 'Watermelon',
+                'Papaya (Pawpaw)', 'Passion Fruit', 'Tree Tomato', 'Guava', 'Apple', 'Pear',
+                'Lemon', 'Tangerine', 'Grapefruit', 'Strawberries', 'Blueberries', 'Grapes',
+                'Kiwi', 'Peach', 'Plum', 'Jackfruit', 'Coconut', 'Melon', 'Lime'
+            ]
+        };
+
+        // Approximate cooked-food values per 100 g. Recipes (especially Isombe and groundnut sauce) vary substantially.
+        const DEFAULT_FOOD_NUTRITION = {
+            'Rice': [130,2.7,28.2,0.3], 'Spaghetti': [158,5.8,30.9,0.9], 'Posho': [110,2.5,23.5,0.4], 'Ugali': [110,2.5,23.5,0.4],
+            'Matoke': [116,1.3,31.0,0.3], 'Beans': [127,8.7,22.8,0.5], 'Cabbage': [23,1.3,5.5,0.1], 'Dodo (Amaranth Greens)': [23,2.5,4.0,0.3],
+            'Groundnut Sauce': [220,8.0,12.0,17.0], 'Sweet Potatoes': [90,2.0,20.7,0.2], 'Irish Potatoes': [87,1.9,20.1,0.1],
+            'Cassava': [160,1.4,38.1,0.3], 'Isombe': [120,4.5,8.0,8.0], 'Ibijumba': [90,2.0,20.7,0.2], 'Peas': [84,5.4,15.0,0.2],
+            'Chicken': [165,31.0,0,3.6], 'Beef': [217,26.0,0,12.0], 'Fish': [128,26.0,0,2.7], 'Tilapia': [128,26.0,0,2.7],
+            'Sardines': [208,24.6,0,11.5], 'Milk': [61,3.2,4.8,3.3], 'Plain Yogurt': [61,3.5,4.7,3.3], 'Oats': [389,16.9,66.3,6.9],
+            'Bread': [266,8.9,49.0,3.2], 'Whole-wheat Bread': [247,13.0,41.0,4.2], 'Chapati': [300,7.0,45.0,9.0], 'Pumpkin': [26,1.0,6.5,0.1],
+            'Carrots': [41,0.9,9.6,0.2], 'Spinach': [23,2.9,3.6,0.4], 'Broccoli': [35,2.4,7.2,0.4], 'Tomatoes': [18,0.9,3.9,0.2],
+            'Onions': [40,1.1,9.3,0.1], 'Green Peas': [84,5.4,15.0,0.2], 'Lentils': [116,9.0,20.1,0.4], 'Sweetcorn': [96,3.4,21.0,1.5],
+            'Eggplant': [25,1.0,6.0,0.2], 'Mushrooms': [22,3.1,3.3,0.3], 'Mixed Vegetables': [65,2.5,12.0,0.5],
+            'Boiled Eggs': [155,12.6,1.1,10.6], 'Fried Eggs': [196,13.6,0.8,14.8], 'Avocado': [160,2.0,8.5,14.7],
+            'Yellow Banana': [89,1.1,22.8,0.3], 'Mango': [60,0.8,15.0,0.4], 'Orange': [47,0.9,11.8,0.1], 'Pineapple': [50,0.5,13.1,0.1],
+            'Watermelon': [30,0.6,7.6,0.2], 'Papaya (Pawpaw)': [43,0.5,10.8,0.3], 'Apple': [52,0.3,13.8,0.2], 'Guava': [68,2.6,14.3,1.0],
+            'Fried Groundnuts': [585,25.8,21.5,49.7], 'Roasted Groundnuts': [585,25.8,21.5,49.7], 'Cashew Nuts': [553,18.2,30.2,43.9],
+            'Almonds': [579,21.2,21.6,49.9], 'Walnuts': [654,15.2,13.7,65.2], 'Pumpkin Seeds': [559,30.2,10.7,49.1],
+            'Sunflower Seeds': [584,20.8,20.0,51.5], 'Boiled Egg': [155,12.6,1.1,10.6], 'Boiled Sweet Potato': [90,2.0,20.7,0.2],
+            'Boiled Cassava': [160,1.4,38.1,0.3], 'Roasted Maize': [140,4.5,29.0,1.5], 'Popcorn (Plain)': [387,13.0,78.0,4.5]
+        };
+        let selectedFoodItems = [];
+        let foodItemQuantities = {};
+        function foodNutritionKey(category, name) { return `${category}::${name}`; }
+        function getFoodNutrition(category, name) {
+            const custom = state.foodNutrition?.[foodNutritionKey(category, name)];
+            if (custom) return custom;
+            const values = DEFAULT_FOOD_NUTRITION[name];
+            return values ? { calories:values[0], protein:values[1], carbs:values[2], fats:values[3], estimated:true } : null;
+        }
+        function getFoodCatalog() {
+            if (!state.foodCatalog) state.foodCatalog = JSON.parse(JSON.stringify(FOOD_CATALOG));
+            return state.foodCatalog;
+        }
+        function populateFoodPicker(category) {
+            const wrap = document.getElementById('food-picker-wrap');
+            if (!wrap) return;
+            const show = ['FOOD', 'SNACK', 'FRUIT'].includes(category);
+            wrap.classList.toggle('hidden', !show);
+            if (!show) return;
+            selectedFoodItems = [];
+            foodItemQuantities = {};
+            const search = document.getElementById('food-list-search'); if (search) search.value = '';
+            renderFoodChoices();
+        }
+        function renderFoodChoices() {
+            const list = document.getElementById('food-choice-list'); if (!list) return;
+            const category = document.getElementById('entry-category').value;
+            const query = (document.getElementById('food-list-search')?.value || '').trim().toLowerCase();
+            const items = (getFoodCatalog()[category] || []).filter(item => item.toLowerCase().includes(query));
+            list.innerHTML = items.map(item => `<label class="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-2 py-2 text-[11px] cursor-pointer"><input type="checkbox" ${selectedFoodItems.includes(item) ? 'checked' : ''} onchange="toggleFoodChoice('${escapeHtml(item).replace(/\'/g, '&#39;')}',this.checked)" class="accent-emerald-600"><span>${escapeHtml(item)}</span></label>`).join('') || '<p class="col-span-full text-[11px] text-gray-400 py-2">No items found. Use Manage list to add one.</p>';
+        }
+        function toggleFoodChoice(item, checked) {
+            const category = document.getElementById('entry-category').value;
+            if (checked && !selectedFoodItems.includes(item)) { selectedFoodItems.push(item); foodItemQuantities[item] = 100; }
+            if (!checked) { selectedFoodItems = selectedFoodItems.filter(x => x !== item); delete foodItemQuantities[item]; }
+            renderSelectedFoodQuantities();
+            updateFoodNutritionTotals();
+        }
+        function renderSelectedFoodQuantities() {
+            const wrap = document.getElementById('food-quantity-list'); if (!wrap) return;
+            const category = document.getElementById('entry-category').value;
+            wrap.innerHTML = selectedFoodItems.map(item => {
+                const n = getFoodNutrition(category,item);
+                return `<div class="grid grid-cols-[minmax(0,1fr)_94px] gap-2 items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2">
+                    <div class="min-w-0"><p class="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">${escapeHtml(item)}</p><p class="text-[10px] ${n?'text-gray-500':'text-amber-600'}">${n?`${n.estimated?'Estimated · ':''}${n.calories} kcal / 100 g`:'Nutrition not set — add values in Manage list'}</p></div>
+                    <label class="text-[10px] text-gray-500">Weight (g)<input type="number" min="1" step="1" value="${foodItemQuantities[item]||100}" oninput="setFoodItemQuantity('${escapeHtml(item).replace(/\'/g,'&#39;')}',this.value)" class="mt-1 w-full px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs font-bold"></label>
+                </div>`;
+            }).join('');
+        }
+        function setFoodItemQuantity(item, value) {
+            foodItemQuantities[item] = Math.max(1, Number(value) || 1);
+            updateFoodNutritionTotals();
+        }
+        function updateFoodNutritionTotals() {
+            const category = document.getElementById('entry-category').value;
+            const chosen = selectedFoodItems.map(name => ({name, grams:foodItemQuantities[name]||100, nutrition:getFoodNutrition(category,name)}));
+            const totals = chosen.reduce((t,x) => {
+                if (!x.nutrition) return t;
+                const f=x.grams/100, n=x.nutrition;
+                t.calories += n.calories*f; t.protein += n.protein*f; t.carbs += n.carbs*f; t.fats += n.fats*f;
+                return t;
+            }, {calories:0,protein:0,carbs:0,fats:0});
+            const allKnown = chosen.length && chosen.every(x=>x.nutrition);
+            const name = document.getElementById('entry-name');
+            if (chosen.length) {
+                name.value = chosen.map(x=>x.name).join(' + ');
+                document.getElementById('entry-portion').value = chosen.map(x=>`${x.name}: ${x.grams} g`).join(' + ');
+                for (const [id,key] of [['entry-calories','calories'],['entry-protein','protein'],['entry-carbs','carbs'],['entry-fats','fats']]) document.getElementById(id).value = Math.round(totals[key]*10)/10;
+            } else {
+                name.value = '';
+                document.getElementById('entry-portion').value = '';
+            }
+            const summary = document.getElementById('food-nutrition-summary');
+            if (summary) {
+                summary.classList.toggle('hidden', !chosen.length);
+                summary.innerHTML = chosen.length ? `<p class="font-extrabold text-emerald-700 dark:text-emerald-300 mb-1">Meal nutrition ${allKnown?'calculated':'partially calculated'}</p><div class="grid grid-cols-2 sm:grid-cols-4 gap-2"><span>Calories: <b>${Math.round(totals.calories)} kcal</b></span><span>Protein: <b>${totals.protein.toFixed(1)} g</b></span><span>Carbs: <b>${totals.carbs.toFixed(1)} g</b></span><span>Fats: <b>${totals.fats.toFixed(1)} g</b></span></div>${allKnown?'':'<p class="text-amber-600 mt-1">Some selected foods have no nutrition data. Add values per 100 g in Manage list; totals currently exclude those foods.</p>'}<p class="text-gray-400 mt-1">Hydration is entered separately; food moisture is not counted as drinking water.</p>` : '';
+            }
+            checkArtificialSugarGuardrail();
+        }
+        function openFoodListManager() {
+            renderManagedFoodItems();
+            document.getElementById('food-list-modal').classList.remove('hidden');
+            document.getElementById('new-food-list-item').focus();
+        }
+        function closeFoodListManager() { document.getElementById('food-list-modal').classList.add('hidden'); renderFoodChoices(); }
+        function renderManagedFoodItems() {
+            const wrap = document.getElementById('managed-food-items'); if (!wrap) return;
+            const category = document.getElementById('entry-category').value;
+            const items = getFoodCatalog()[category] || [];
+            wrap.innerHTML = items.map((item, i) => { const nutrition=getFoodNutrition(category,item); return `<div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"><div class="min-w-0"><span class="text-xs">${escapeHtml(item)}</span><p class="text-[9px] ${nutrition?'text-emerald-600':'text-amber-600'}">${nutrition?'Nutrition available':'Nutrition data needed'}</p></div><button type="button" onclick="removeFoodCatalogItem(${i})" class="text-rose-500 hover:text-rose-700 px-2 py-1" aria-label="Remove ${escapeHtml(item)}"><i class="fa-solid fa-trash-can"></i></button></div>`; }).join('') || '<p class="text-xs text-gray-400 py-3">No items in this category yet.</p>';
+        }
+        function addFoodCatalogItem(event) {
+            event.preventDefault();
+            const input = document.getElementById('new-food-list-item');
+            const name = input.value.trim(); if (!name) return;
+            const category = document.getElementById('entry-category').value;
+            const catalog = getFoodCatalog(); catalog[category] = catalog[category] || [];
+            if (catalog[category].some(x => x.toLowerCase() === name.toLowerCase())) { showToast('That item is already in the list.','alert'); return; }
+            const nutritionInputs = ['new-food-cal','new-food-pro','new-food-carb','new-food-fat'].map(id=>document.getElementById(id).value.trim());
+            if (nutritionInputs.some(v=>v!=='') && !nutritionInputs.every(v=>v!=='')) { showToast('Enter all four nutrition values per 100 g, or leave all four blank.','alert'); return; }
+            catalog[category].push(name);
+            if (nutritionInputs.every(v=>v!=='')) { const [calories,protein,carbs,fats]=nutritionInputs.map(Number); state.foodNutrition = state.foodNutrition || {}; state.foodNutrition[foodNutritionKey(category,name)] = {calories,protein,carbs,fats,estimated:false}; }
+            saveState(); input.value = ''; ['new-food-cal','new-food-pro','new-food-carb','new-food-fat'].forEach(id=>document.getElementById(id).value='');
+            renderManagedFoodItems(); renderFoodChoices(); showToast(`${name} added to the list. Add nutrition per 100 g for automatic calculations.`,'success');
+        }
+        function removeFoodCatalogItem(index) {
+            const category = document.getElementById('entry-category').value;
+            const catalog = getFoodCatalog(); const removed = (catalog[category] || []).splice(index, 1)[0];
+            if (removed) { selectedFoodItems = selectedFoodItems.filter(x => x !== removed); delete foodItemQuantities[removed]; const name = document.getElementById('entry-name'); if (selectedFoodItems.length) updateFoodNutritionTotals(); else if (name.value === removed) name.value = ''; saveState(); renderManagedFoodItems(); renderFoodChoices(); showToast(`${removed} removed from the list.`,'info'); }
+        }
+
+        let multiFoodRows = [];
+        function addMultiFoodRow(itemId = '', quantity = 1) { multiFoodRows.push({itemId, quantity: Math.max(0.1, Number(quantity)||1)}); renderMultiFoodRows(); }
+        function removeMultiFoodRow(i) { multiFoodRows.splice(i,1); renderMultiFoodRows(); updateMultiFoodTotals(); }
+        function renderMultiFoodRows() {
+            const wrap=document.getElementById('multi-food-rows'); if(!wrap)return;
+            const cat=document.getElementById('entry-category').value;
+            const available=(state.pantry||[]).filter(p=>cat==='BEVERAGE'?p.category==='BEVERAGE':p.category!=='BEVERAGE');
+            wrap.innerHTML=multiFoodRows.map((r,i)=>`<div class="grid grid-cols-[minmax(0,1fr)_76px_30px] gap-2 items-center"><select onchange="setMultiFoodItem(${i},this.value)" class="min-w-0 w-full px-2 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs"><option value="">Choose Pantry item...</option>${available.map(p=>`<option value="${escapeHtml(p.id)}" ${p.id===r.itemId?'selected':''}>${escapeHtml(p.name)} · ${escapeHtml(p.category)}</option>`).join('')}</select><input type="number" min="0.1" step="0.1" value="${r.quantity}" aria-label="Quantity" onchange="setMultiFoodQuantity(${i},this.value)" class="w-full px-2 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs"><button type="button" onclick="removeMultiFoodRow(${i})" class="text-rose-500 p-1" aria-label="Remove item"><i class="fa-solid fa-trash"></i></button></div>`).join('') || '<p class="text-[10px] text-gray-400">No items added yet. Click “Add item” to start.</p>';
+        }
+        function setMultiFoodItem(i,id){if(multiFoodRows[i])multiFoodRows[i].itemId=id;updateMultiFoodTotals();}
+        function setMultiFoodQuantity(i,q){if(multiFoodRows[i])multiFoodRows[i].quantity=Math.max(.1,Number(q)||1);updateMultiFoodTotals();}
+        function updateMultiFoodTotals(){
+            const chosen=multiFoodRows.map(r=>({item:(state.pantry||[]).find(p=>p.id===r.itemId),quantity:r.quantity})).filter(x=>x.item); if(!chosen.length)return;
+            const totals=chosen.reduce((s,x)=>{const p=x.item,q=x.quantity;s.calories+=(+p.calories||0)*q;s.protein+=(+p.protein||0)*q;s.carbs+=(+p.carbs||0)*q;s.fats+=(+p.fats||0)*q;s.waterMl+=(+p.waterMl||0)*q;return s;},{calories:0,protein:0,carbs:0,fats:0,waterMl:0});
+            document.getElementById('entry-name').value=chosen.map(x=>`${x.item.name}${x.quantity!==1?` × ${x.quantity}`:''}`).join(' + ');
+            document.getElementById('entry-portion').value=chosen.map(x=>`${x.quantity} × ${x.item.portion}`).join(' + ');
+            for(const [id,key] of [['entry-calories','calories'],['entry-protein','protein'],['entry-carbs','carbs'],['entry-fats','fats'],['entry-water-ml','waterMl']])document.getElementById(id).value=Math.round(totals[key]*10)/10;
+            checkArtificialSugarGuardrail();
+        }
+
+        // --- ENTRY CATEGORY SWITCHING & ZERO-ADDED-SUGAR GUARDRAIL ---
+        function selectEntryCategory(cat) {
+            document.getElementById('entry-category').value = cat;
+            populateFoodPicker(cat);
+            selectedFoodItems = [];
+            foodItemQuantities = {};
+            multiFoodRows=[];
+
+            const subSelect = document.getElementById('entry-sub-type');
+            const labelName = document.getElementById('label-item-name');
+            const labelSub = document.getElementById('label-sub-type');
+            const labelPortion = document.getElementById('label-portion');
+            const labelCal = document.getElementById('label-calories');
+            const macrosRow = document.getElementById('nutrition-macros-row');
+            const workoutRow = document.getElementById('workout-metrics-row');
+            const bevPresets = document.getElementById('beverage-clean-presets');
+            const badgePreview = document.getElementById('entry-sugar-badge-preview');
+
+            const optionsMap = {
+                WORKOUT: ['Strength Training', 'Cardio / Running', 'HIIT Conditioning', 'Cycling', 'Yoga & Mobility', 'Swimming / Sports', 'Walking / Active Recovery'],
+                FOOD: ['Breakfast', 'Lunch', 'Dinner'],
+                SNACK: ['Whole-Food Snack', 'Nuts & Seeds', 'Protein Snack', 'Veggies & Hummus', 'Plain Greek Yogurt'],
+                FRUIT: ['Fresh Whole Fruit', 'Berries & Antioxidants', 'Citrus Fruit', 'Tropical Whole Fruit'],
+                BEVERAGE: ['Pure Hydration', 'Unsweetened Tea', 'Black Coffee (No Sugar)', 'Sparkling Mineral Water', 'Fresh Herb/Citrus Infusion', '100% Pure Coconut Water']
+            };
+
+            subSelect.innerHTML = (optionsMap[cat] || []).map(o => `<option value="${o}">${o}</option>`).join('');
+
+            if (cat === 'WORKOUT') {
+                labelName.textContent = 'Workout / Exercise Name *';
+                document.getElementById('entry-name').placeholder = 'e.g. Full Body Strength / 5km Run';
+                labelSub.textContent = 'Training Discipline *';
+                labelPortion.textContent = 'Duration Label *';
+                document.getElementById('entry-portion').value = `${document.getElementById('entry-duration-mins').value || 45} mins`;
+                labelCal.textContent = 'Calories Burned (kcal) *';
+                macrosRow.classList.add('hidden');
+                workoutRow.classList.remove('hidden');
+                bevPresets.classList.add('hidden');
+                badgePreview.innerHTML = '<i class="fa-solid fa-fire-flame-curved mr-1.5"></i> Physical Activity Log';
+            } else {
+                macrosRow.classList.remove('hidden');
+                workoutRow.classList.add('hidden');
+                bevPresets.classList.toggle('hidden', cat !== 'BEVERAGE');
+                labelCal.textContent = 'Calories Consumed (kcal) *';
+
+                if (cat === 'FOOD') {
+                    labelName.textContent = 'Meal / Food Name *';
+                    document.getElementById('entry-name').placeholder = 'e.g. Grilled Salmon, Quinoa & Avocado';
+                    labelSub.textContent = 'Meal Timing *';
+                    labelPortion.textContent = 'Serving / Portion *';
+                    document.getElementById('entry-portion').placeholder = 'e.g. 1 plate (400g)';
+                    badgePreview.innerHTML = '<i class="fa-solid fa-check-circle mr-1.5"></i> 0g Added Artificial Sugar';
+                } else if (cat === 'SNACK') {
+                    labelName.textContent = 'Healthy Snack Name *';
+                    document.getElementById('entry-name').placeholder = 'e.g. Raw Almonds & Boiled Eggs';
+                    labelSub.textContent = 'Snack Type *';
+                    labelPortion.textContent = 'Portion Size *';
+                    document.getElementById('entry-portion').placeholder = 'e.g. 40g handful';
+                    badgePreview.innerHTML = '<i class="fa-solid fa-check-circle mr-1.5"></i> 0g Added Artificial Sugar';
+                } else if (cat === 'FRUIT') {
+                    labelName.textContent = 'Fresh Fruit Name *';
+                    document.getElementById('entry-name').placeholder = 'e.g. Fresh Blueberries & Banana';
+                    labelSub.textContent = 'Fruit Group *';
+                    labelPortion.textContent = 'Quantity / Weight *';
+                    document.getElementById('entry-portion').placeholder = 'e.g. 1 medium (150g)';
+                    badgePreview.innerHTML = '<i class="fa-solid fa-apple-whole mr-1.5"></i> Natural Fruit Sugar (Whole Fiber)';
+                } else if (cat === 'BEVERAGE') {
+                    labelName.textContent = 'Clean Sugar-Free Beverage *';
+                    document.getElementById('entry-name').placeholder = 'e.g. Unsweetened Green Tea / Pure Water';
+                    labelSub.textContent = 'Clean Beverage Category *';
+                    labelPortion.textContent = 'Volume (ml) *';
+                    document.getElementById('entry-portion').placeholder = 'e.g. 500 ml';
+                    badgePreview.innerHTML = '<i class="fa-solid fa-shield-check mr-1.5"></i> Strictly 0g Added Sugar';
+                }
+            }
+            checkArtificialSugarGuardrail();
+            if (!document.getElementById('editing-record-id')?.value) {
+                const formTitle = document.getElementById('entry-form-title');
+                if (formTitle) formTitle.textContent = cat === 'WORKOUT' ? 'Log Workout' : `Log ${cat}`;
+                const pageTitle = document.getElementById('page-title');
+                if (pageTitle && document.getElementById('tab-entry') && !document.getElementById('tab-entry').classList.contains('hidden')) pageTitle.textContent = cat;
+            }
+        }
+
+        function syncWorkoutDurationLabel() {
+            if (document.getElementById('entry-category').value === 'WORKOUT') {
+                const mins = document.getElementById('entry-duration-mins').value || 0;
+                document.getElementById('entry-portion').value = `${mins} mins`;
+            }
+        }
+
+        function applyBeveragePreset(name, ml, kcal) {
+            document.getElementById('entry-name').value = name;
+            document.getElementById('entry-portion').value = `${ml} ml`;
+            document.getElementById('entry-calories').value = kcal;
+            document.getElementById('entry-water-ml').value = ml;
+            document.getElementById('entry-protein').value = 0;
+            document.getElementById('entry-carbs').value = kcal > 10 ? 14 : 0;
+            document.getElementById('entry-fats').value = 0;
+            checkArtificialSugarGuardrail();
+            showToast(`Loaded clean preset: ${name} (${ml}ml)`, 'info');
+        }
+
+        function containsBannedSugar(text) {
+            const lower = String(text || '').toLowerCase();
+            if (lower.includes('no sugar') || lower.includes('zero sugar') || lower.includes('unsweetened') || lower.includes('sugar-free')) {
+                // Still block artificial sweeteners like aspartame/sucralose
+                const artificial = ['aspartame', 'sucralose', 'saccharin', 'acesulfame', 'diet soda', 'cola', 'pepsi', 'coke'];
+                return artificial.some(term => lower.includes(term));
+            }
+            return BANNED_SUGAR_TERMS.some(term => lower.includes(term));
+        }
+
+        function checkArtificialSugarGuardrail() {
+            const name = document.getElementById('entry-name')?.value || '';
+            const notes = document.getElementById('entry-notes')?.value || '';
+            const flagged = containsBannedSugar(name + ' ' + notes);
+            const warnEl = document.getElementById('sugar-warning-inline');
+            const submitBtn = document.getElementById('form-submit-btn');
+            if (warnEl) warnEl.classList.toggle('hidden', !flagged);
+            if (submitBtn) {
+                submitBtn.disabled = flagged;
+                submitBtn.classList.toggle('opacity-50', flagged);
+                submitBtn.classList.toggle('cursor-not-allowed', flagged);
+            }
+            return flagged;
+        }
+
+        function resetEntryForm() {
+            document.getElementById('editing-record-id').value = '';
+            document.getElementById('fnt-entry-form').reset();
+            document.getElementById('entry-form-title').textContent = 'Log Fitness Routine or Clean Nutrition';
+            document.getElementById('form-submit-btn').textContent = 'Save Log Entry';
+            selectedFoodItems = []; foodItemQuantities = {};
+            setDefaultDateTime();
+            selectEntryCategory('WORKOUT');
+        }
+
+        function handleEntrySubmit(e) {
+            e.preventDefault();
+            if (checkArtificialSugarGuardrail()) {
+                showToast('Blocked: Added or artificial sugar beverages/items are not allowed in FNT.', 'alert');
+                return;
+            }
+
+            const editingId = document.getElementById('editing-record-id').value;
+            const category = document.getElementById('entry-category').value;
+            const name = document.getElementById('entry-name').value.trim();
+            const subType = document.getElementById('entry-sub-type').value;
+            const portion = document.getElementById('entry-portion').value.trim();
+            const calories = parseFloat(document.getElementById('entry-calories').value) || 0;
+            const protein = category === 'WORKOUT' ? 0 : (parseFloat(document.getElementById('entry-protein').value) || 0);
+            const carbs = category === 'WORKOUT' ? 0 : (parseFloat(document.getElementById('entry-carbs').value) || 0);
+            const fats = category === 'WORKOUT' ? 0 : (parseFloat(document.getElementById('entry-fats').value) || 0);
+            const waterMl = category === 'WORKOUT' ? 0 : (parseFloat(document.getElementById('entry-water-ml').value) || 0);
+            const durationMins = category === 'WORKOUT' ? (parseInt(document.getElementById('entry-duration-mins').value, 10) || 0) : 0;
+            const intensity = category === 'WORKOUT' ? document.getElementById('entry-intensity').value : '';
+            const date = document.getElementById('entry-date').value;
+            const time = document.getElementById('entry-time').value;
+            const notes = document.getElementById('entry-notes').value.trim();
+            const sugarStatus = category === 'FRUIT' ? 'Natural Fruit Sugar' : '0g Added Sugar';
+            const items = selectedFoodItems.map(itemName => ({ name:itemName, quantityG:foodItemQuantities[itemName]||100, nutrition:getFoodNutrition(category,itemName) || null }));
+
+            if (editingId) {
+                const idx = state.logs.findIndex(l => l.id === editingId);
+                if (idx !== -1) {
+                    state.logs[idx] = { ...state.logs[idx], category, name, subType, portion, calories, protein, carbs, fats, waterMl, durationMins, intensity, date, time, notes, sugarStatus, items };
+                    showToast(`Updated log ${editingId}`, 'success');
+                }
+            } else {
+                const id = generateFntLogId(new Set(state.logs.map(log => log.id)));
+                state.logs.unshift({ id, category, name, subType, portion, calories, protein, carbs, fats, waterMl, durationMins, intensity, date, time, notes, sugarStatus, items });
+                showToast(`Logged ${category}: ${name} (${id})`, 'success');
+            }
+
+            saveState();
+            resetEntryForm();
+            switchTab('records');
+        }
+
+        function editLog(id) {
+            const item = state.logs.find(l => l.id === id);
+            if (!item) return;
+            document.getElementById('editing-record-id').value = item.id;
+            selectEntryCategory(item.category);
+            multiFoodRows=[];
+            document.getElementById('entry-name').value = item.name;
+            selectedFoodItems = Array.isArray(item.items) && item.items.some(x=>x.name) ? item.items.filter(x=>x.name).map(x=>x.name) : (item.name || '').split(' + ').map(x => x.trim()).filter(Boolean);
+            foodItemQuantities = {}; selectedFoodItems.forEach(x => { const savedItem=(item.items||[]).find(y=>y.name===x); foodItemQuantities[x] = savedItem?.quantityG || (savedItem?.quantity ? savedItem.quantity*100 : 100); });
+            renderFoodChoices(); renderSelectedFoodQuantities();
+            document.getElementById('entry-sub-type').value = item.subType;
+            document.getElementById('entry-portion').value = item.portion;
+            document.getElementById('entry-calories').value = item.calories;
+            document.getElementById('entry-protein').value = item.protein || 0;
+            document.getElementById('entry-carbs').value = item.carbs || 0;
+            document.getElementById('entry-fats').value = item.fats || 0;
+            document.getElementById('entry-water-ml').value = item.waterMl || 0;
+            if (item.category === 'WORKOUT') {
+                document.getElementById('entry-duration-mins').value = item.durationMins || 45;
+                document.getElementById('entry-intensity').value = item.intensity || 'Moderate';
+            }
+            document.getElementById('entry-date').value = item.date;
+            document.getElementById('entry-time').value = item.time;
+            document.getElementById('entry-notes').value = item.notes || '';
+            document.getElementById('entry-form-title').textContent = `Edit Log Entry (${item.id})`;
+            document.getElementById('form-submit-btn').textContent = 'Update Log Entry';
+            switchTab('entry');
+        }
+
+        function deleteLog(id) {
+            state.logs = state.logs.filter(l => l.id !== id);
+            saveState();
+            refreshAllViews();
+            showToast(`Removed entry ${id}`, 'info');
+        }
+
+        function viewLog(id) {
+            const l = state.logs.find(item => item.id === id);
+            if (!l) return;
+            const body = document.getElementById('view-modal-body');
+            body.innerHTML = `
+                <div class="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex justify-between">
+                    <span class="text-gray-400">Entry ID</span>
+                    <span class="font-mono font-bold text-emerald-500">${escapeHtml(l.id)}</span>
+                </div>
+                <div class="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex justify-between">
+                    <span class="text-gray-400">Category</span>
+                    <span class="font-bold">${escapeHtml(l.category)} (${escapeHtml(l.subType)})</span>
+                </div>
+                <div class="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl">
+                    <span class="text-gray-400 block">Item / Routine</span>
+                    <span class="font-bold text-sm text-gray-900 dark:text-white">${escapeHtml(l.name)}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl">
+                        <span class="text-gray-400 block">Portion / Duration</span>
+                        <span class="font-bold">${escapeHtml(l.portion)}</span>
+                    </div>
+                    <div class="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl">
+                        <span class="text-gray-400 block">Energy</span>
+                        <span class="font-black text-emerald-500">${l.calories} kcal ${l.category === 'WORKOUT' ? '(Burned)' : '(Intake)'}</span>
+                    </div>
+                </div>
+                ${l.category !== 'WORKOUT' ? `
+                <div class="grid grid-cols-4 gap-2 text-center p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl">
+                    <div><span class="text-[10px] text-gray-400 block">Protein</span><strong>${l.protein || 0}g</strong></div>
+                    <div><span class="text-[10px] text-gray-400 block">Carbs</span><strong>${l.carbs || 0}g</strong></div>
+                    <div><span class="text-[10px] text-gray-400 block">Fats</span><strong>${l.fats || 0}g</strong></div>
+                    <div><span class="text-[10px] text-blue-400 block">Water</span><strong class="text-blue-500">${l.waterMl || 0}ml</strong></div>
+                </div>` : ''}
+                <div class="p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl">
+                    <span class="text-gray-400 block">Notes</span>
+                    <span class="italic text-gray-600 dark:text-gray-300">${escapeHtml(l.notes || 'No notes recorded.')}</span>
+                </div>
+            `;
+            document.getElementById('view-record-modal').classList.remove('hidden');
+        }
+
+        function closeViewRecordModal() {
+            document.getElementById('view-record-modal').classList.add('hidden');
+        }
+
+        // --- DASHBOARD RENDERING & CHARTS ---
+        function getFilteredLogsByPeriod(periodId) {
+            const filter = document.getElementById(periodId)?.value || 'today';
+            const todayStr = new Date().toISOString().split('T')[0];
+            let logs = state.logs || [];
+
+            if (periodId === 'dashboard-period-filter') {
+                const customBox = document.getElementById('dashboard-custom-date-container');
+                if (customBox) customBox.classList.toggle('hidden', filter !== 'custom');
+            }
+
+            if (filter === 'today') {
+                return logs.filter(l => l.date === todayStr);
+            } else if (filter === 'week') {
+                const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+                return logs.filter(l => l.date >= weekAgo);
+            } else if (filter === 'month') {
+                const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+                return logs.filter(l => l.date >= monthAgo);
+            } else if (filter === 'custom') {
+                const from = document.getElementById('dashboard-date-from')?.value || '';
+                const to = document.getElementById('dashboard-date-to')?.value || '';
+                if (from && to && from <= to) return logs.filter(l => l.date >= from && l.date <= to);
+                return [];
+            }
+            return logs;
+        }
+
+        function renderDashboard() {
+            const logs = getFilteredLogsByPeriod('dashboard-period-filter');
+
+            let calIn = 0, calOut = 0, protein = 0, waterMl = 0, workoutMins = 0;
+            const counts = { WORKOUT: 0, FOOD: 0, SNACK: 0, FRUIT: 0, BEVERAGE: 0 };
+
+            logs.forEach(l => {
+                counts[l.category] = (counts[l.category] || 0) + 1;
+                if (l.category === 'WORKOUT') {
+                    calOut += Number(l.calories) || 0;
+                    workoutMins += Number(l.durationMins) || 0;
+                } else {
+                    calIn += Number(l.calories) || 0;
+                    protein += Number(l.protein) || 0;
+                    waterMl += Number(l.waterMl) || 0;
+                }
+            });
+
+            const netCal = calIn - calOut;
+
+            document.getElementById('dash-cal-in').textContent = `${Math.round(calIn).toLocaleString()} kcal`;
+            document.getElementById('dash-cal-in-sub').textContent = `Target: ${state.goals.calories.toLocaleString()} kcal`;
+            document.getElementById('dash-cal-out').textContent = `${Math.round(calOut).toLocaleString()} kcal`;
+            document.getElementById('dash-workout-mins').textContent = `${workoutMins} mins (Goal: ${state.goals.workoutMins}m)`;
+            document.getElementById('dash-net-cal').textContent = `${netCal >= 0 ? '+' : ''}${Math.round(netCal).toLocaleString()} kcal`;
+            document.getElementById('dash-protein').textContent = `${Math.round(protein)} g`;
+            document.getElementById('dash-protein-sub').textContent = `Target: ${state.goals.protein} g`;
+            document.getElementById('dash-hydration').textContent = `${(waterMl / 1000).toFixed(2)} L`;
+            document.getElementById('dash-hydration-sub').textContent = `Goal: ${(state.goals.waterMl / 1000).toFixed(1)} L (0g Sugar)`;
+            document.getElementById('dash-sugar-free').textContent = '100%';
+            document.getElementById('dash-entries-count').textContent = `${logs.length} clean entries`;
+
+            Object.keys(counts).forEach(k => {
+                const el = document.getElementById(`cat-count-${k.toLowerCase()}`);
+                if (el) el.textContent = counts[k];
+            });
+
+            renderCalorieTimelineChart(state.logs || []);
+            renderPeakHoursHeatmapChart(logs);
+        }
+
+        function renderCalorieTimelineChart(allLogs) {
+            const ctx = document.getElementById('chart-calorie-timeline');
+            if (!ctx) return;
+            if (calorieChart) calorieChart.destroy();
+
+            const intakeMap = {};
+            const burnMap = {};
+            allLogs.forEach(l => {
+                if (l.category === 'WORKOUT') {
+                    burnMap[l.date] = (burnMap[l.date] || 0) + (Number(l.calories) || 0);
+                } else {
+                    intakeMap[l.date] = (intakeMap[l.date] || 0) + (Number(l.calories) || 0);
+                }
+            });
+
+            const allDates = Array.from(new Set([...Object.keys(intakeMap), ...Object.keys(burnMap)])).sort().slice(-7);
+            const labelsBase = allDates.length ? allDates : [new Date().toISOString().split('T')[0]];
+            const intakeData = labelsBase.map(d => intakeMap[d] || 0);
+            const burnData = labelsBase.map(d => burnMap[d] || 0);
+
+            const avgIntake = intakeData.reduce((a, b) => a + b, 0) / Math.max(intakeData.length, 1);
+            const forecastLabels = [];
+            const forecastVals = [];
+            const lastDate = new Date((labelsBase[labelsBase.length - 1]) + 'T12:00:00');
+            for (let i = 1; i <= 3; i++) {
+                const d = new Date(lastDate);
+                d.setDate(d.getDate() + i);
+                forecastLabels.push(d.toISOString().split('T')[0]);
+                forecastVals.push(Math.round(avgIntake));
+            }
+
+            const labels = [...labelsBase, ...forecastLabels];
+            const actualIntakeLine = [...intakeData, null, null, null];
+            const actualBurnLine = [...burnData, null, null, null];
+            const projectionLine = [...Array(Math.max(0, intakeData.length - 1)).fill(null), intakeData[intakeData.length - 1], ...forecastVals];
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#9ca3af' : '#4b5563';
+            const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+
+            calorieChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Clean Calories Intake (kcal)', data: actualIntakeLine, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 3, fill: true, tension: 0.35, pointRadius: 3 },
+                        { label: 'Workout Calories Burned (kcal)', data: actualBurnLine, borderColor: '#f43f5e', backgroundColor: 'rgba(244,63,94,0.08)', borderWidth: 2.5, fill: false, tension: 0.35, pointRadius: 3 },
+                        { label: '3-Day Intake Trend', data: projectionLine, borderColor: '#818cf8', borderWidth: 2.5, borderDash: [6, 5], fill: false, tension: 0.25, pointRadius: 3, pointStyle: 'rectRot' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { position: 'bottom', labels: { color: textColor, usePointStyle: true, boxWidth: 8, font: { size: 10 } } } },
+                    scales: {
+                        x: { ticks: { color: textColor, font: { size: 10 } }, grid: { color: gridColor } },
+                        y: { beginAtZero: true, ticks: { color: textColor, font: { size: 10 } }, grid: { color: gridColor } }
+                    }
+                }
+            });
+        }
+
+        function renderPeakHoursHeatmapChart(records) {
+            const ctx = document.getElementById('chart-peak-hours');
+            if (!ctx) return;
+            if (peakChart) peakChart.destroy();
+
+            const hoursRange = [];
+            const hourCounts = {};
+            for (let h = 6; h <= 22; h++) {
+                const slot = `${String(h).padStart(2, '0')}:00`;
+                hoursRange.push(slot);
+                hourCounts[h] = 0;
+            }
+
+            records.forEach(r => {
+                if (r.time) {
+                    const h = parseInt(r.time.split(':')[0], 10);
+                    if (h >= 6 && h <= 22) hourCounts[h] = (hourCounts[h] || 0) + 1;
+                }
+            });
+
+            const dataValues = hoursRange.map(s => hourCounts[parseInt(s.split(':')[0], 10)] || 0);
+            const maxVal = Math.max(...dataValues, 1);
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#9ca3af' : '#4b5563';
+            const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+
+            const barBackgrounds = dataValues.map(val => {
+                if (val === 0) return isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)';
+                const ratio = val / maxVal;
+                if (ratio > 0.75) return 'rgba(239, 68, 68, 0.85)';
+                if (ratio > 0.4) return 'rgba(245, 158, 11, 0.85)';
+                return 'rgba(34, 197, 94, 0.85)';
+            });
+
+            peakChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: hoursRange,
+                    datasets: [{
+                        label: 'Logs Recorded',
+                        data: dataValues,
+                        backgroundColor: barBackgrounds,
+                        borderRadius: 6,
+                        barPercentage: 0.8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: textColor, font: { size: 9, weight: '600' } }, grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { color: textColor, font: { size: 9 }, precision: 0 }, grid: { color: gridColor } }
+                    }
+                }
+            });
+        }
+
+        // --- DAILY LOG & LEDGER TABLE ---
+        function getCategoryBadgeClass(cat) {
+            const map = {
+                WORKOUT: 'bg-teal-500/10 text-teal-600 border border-teal-500/30 dark:text-teal-400',
+                FOOD: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 dark:text-emerald-400',
+                SNACK: 'bg-amber-500/10 text-amber-700 border border-amber-500/30 dark:text-amber-300',
+                FRUIT: 'bg-purple-500/10 text-purple-600 border border-purple-500/30 dark:text-purple-300',
+                BEVERAGE: 'bg-blue-500/10 text-blue-600 border border-blue-500/30 dark:text-blue-300'
+            };
+            return map[cat] || map.FOOD;
+        }
+
+        function renderRecordsTable() {
+            const tbody = document.getElementById('records-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const search = (document.getElementById('search-input')?.value || '').toLowerCase();
+            const catFilter = document.getElementById('filter-category')?.value || 'ALL';
+            const sugarFilter = document.getElementById('filter-sugar')?.value || 'ALL';
+            const sortOpt = document.getElementById('sort-select')?.value || 'date-desc';
+            const dateFrom = document.getElementById('filter-date-from')?.value || '';
+            const dateTo = document.getElementById('filter-date-to')?.value || '';
+
+            let filtered = (state.logs || []).filter(l => {
+                const matchSearch = [l.id, l.name, l.subType, l.category, l.notes].join(' ').toLowerCase().includes(search);
+                const matchCat = catFilter === 'ALL' || l.category === catFilter;
+                const matchSugar = sugarFilter === 'ALL' || l.sugarStatus === sugarFilter;
+                const matchFrom = !dateFrom || l.date >= dateFrom;
+                const matchTo = !dateTo || l.date <= dateTo;
+                return matchSearch && matchCat && matchSugar && matchFrom && matchTo;
+            });
+
+            filtered.sort((a, b) => {
+                if (sortOpt === 'date-desc') return (b.date + b.time).localeCompare(a.date + a.time);
+                if (sortOpt === 'date-asc') return (a.date + a.time).localeCompare(b.date + b.time);
+                if (sortOpt === 'cal-desc') return (Number(b.calories) || 0) - (Number(a.calories) || 0);
+                if (sortOpt === 'name-asc') return String(a.name).localeCompare(String(b.name));
+                return 0;
+            });
+
+            document.getElementById('records-count').textContent = filtered.length;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-gray-400">No fitness or clean nutrition logs match your filters.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(l => {
+                const isWorkout = l.category === 'WORKOUT';
+                const macroText = isWorkout
+                    ? `${escapeHtml(l.intensity || 'Moderate')} • ${l.durationMins || 0} mins`
+                    : `P: ${l.protein || 0}g • C: ${l.carbs || 0}g • F: ${l.fats || 0}g${l.waterMl ? ` • 💧${l.waterMl}ml` : ''}`;
+
+                const sugarBadge = l.sugarStatus === 'Natural Fruit Sugar'
+                    ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/30">Fruit Sugar</span>`
+                    : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">Sugar Free</span>`;
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-800/50 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-mono text-xs font-extrabold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">${escapeHtml(l.id)}</td>
+                    <td class="py-3 px-4 text-xs">${escapeHtml(l.date)}<div class="text-[10px] text-gray-400">${escapeHtml(l.time)}</div></td>
+                    <td class="py-3 px-4"><span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${getCategoryBadgeClass(l.category)}">${escapeHtml(l.category)}</span></td>
+                    <td class="py-3 px-4 font-bold text-gray-900 dark:text-white">${escapeHtml(l.name)}<div class="text-[10px] font-normal text-gray-400">${escapeHtml(l.subType)}</div></td>
+                    <td class="py-3 px-4 text-xs">${escapeHtml(l.portion)}</td>
+                    <td class="py-3 px-4 font-black ${isWorkout ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}">${isWorkout ? '-' : '+'}${l.calories} kcal</td>
+                    <td class="py-3 px-4 text-xs text-gray-500 dark:text-gray-400">${macroText}</td>
+                    <td class="py-3 px-4">${sugarBadge}</td>
+                    <td class="py-3 px-4 text-center">
+                        <div class="flex items-center justify-center gap-1.5">
+                            <button onclick="viewLog('${l.id}')" class="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg" title="View Details"><i class="fa-solid fa-eye"></i></button>
+                            <button onclick="editLog('${l.id}')" class="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button onclick="deleteLog('${l.id}')" class="p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function clearDateFilter() {
+            document.getElementById('filter-date-from').value = '';
+            document.getElementById('filter-date-to').value = '';
+            renderRecordsTable();
+        }
+
+        // --- WORKOUT ROUTINE PLANNER ---
+        function openRoutineModal() { document.getElementById('routine-modal').classList.remove('hidden'); }
+        function closeRoutineModal() { document.getElementById('routine-modal').classList.add('hidden'); }
+
+        function handleRoutineSubmit(e) {
+            e.preventDefault();
+            const rt = {
+                id: 'RT-' + Date.now().toString().slice(-5),
+                day: document.getElementById('rt-day').value,
+                title: document.getElementById('rt-title').value.trim(),
+                type: document.getElementById('rt-type').value,
+                mins: parseInt(document.getElementById('rt-mins').value, 10) || 45,
+                kcal: parseInt(document.getElementById('rt-kcal').value, 10) || 300,
+                exercises: document.getElementById('rt-exercises').value.trim(),
+                completed: false
+            };
+            state.routines.push(rt);
+            saveState();
+            closeRoutineModal();
+            e.target.reset();
+            renderPlannerGrid();
+            showToast(`Added ${rt.day} routine: ${rt.title}`, 'success');
+        }
+
+        function logRoutineAsCompleted(id) {
+            const rt = state.routines.find(r => r.id === id);
+            if (!rt) return;
+            rt.completed = true;
+            const now = new Date();
+            const logId = generateFntLogId(new Set(state.logs.map(log => log.id)));
+            state.logs.unshift({
+                id: logId,
+                date: now.toISOString().split('T')[0],
+                time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+                category: 'WORKOUT',
+                subType: rt.type,
+                name: rt.title,
+                portion: `${rt.mins} mins`,
+                calories: rt.kcal,
+                protein: 0, carbs: 0, fats: 0, waterMl: 0,
+                durationMins: rt.mins,
+                intensity: 'High Intensity',
+                sugarStatus: '0g Added Sugar',
+                notes: rt.exercises
+            });
+            saveState();
+            refreshAllViews();
+            showToast(`Workout completed & logged (-${rt.kcal} kcal)!`, 'success');
+        }
+
+        function deleteRoutine(id) {
+            state.routines = state.routines.filter(r => r.id !== id);
+            saveState();
+            renderPlannerGrid();
+        }
+
+        function renderPlannerGrid() {
+            const grid = document.getElementById('workout-planner-grid');
+            if (!grid) return;
+            if (!state.routines.length) {
+                grid.innerHTML = `<p class="text-xs text-gray-400 col-span-full text-center py-6">No routines scheduled yet. Click "Add Routine Slot" to plan your week.</p>`;
+                return;
+            }
+            grid.innerHTML = state.routines.map(r => `
+                <div class="p-5 rounded-2xl border ${r.completed ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40'} flex flex-col justify-between space-y-4">
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">${escapeHtml(r.day)}</span>
+                            <button onclick="deleteRoutine('${r.id}')" class="text-gray-400 hover:text-rose-500 text-xs"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                        <h4 class="font-bold text-sm text-gray-900 dark:text-white">${escapeHtml(r.title)}</h4>
+                        <p class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">${escapeHtml(r.type)} • ${r.mins} mins • ~${r.kcal} kcal</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">${escapeHtml(r.exercises || 'Custom structured session')}</p>
+                    </div>
+                    <button onclick="logRoutineAsCompleted('${r.id}')" class="w-full py-2.5 rounded-xl ${r.completed ? 'bg-emerald-600/20 text-emerald-500 border border-emerald-500/30' : 'bg-emerald-600 hover:bg-emerald-700 text-white'} text-xs font-bold flex items-center justify-center gap-2 transition">
+                        <i class="fa-solid ${r.completed ? 'fa-circle-check' : 'fa-play'}"></i>
+                        <span>${r.completed ? 'Completed (Log Again)' : 'Complete & Log Workout'}</span>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // --- CLEAN FUEL & ZERO-ADDED-SUGAR PANTRY ---
+        function openPantryModal() { document.getElementById('pantry-item-form').reset(); document.getElementById('pn-edit-id').value=''; document.getElementById('pantry-modal-title').textContent='Add Pantry Item'; document.getElementById('pantry-submit-btn').textContent='Add to Pantry'; document.getElementById('pantry-modal').classList.remove('hidden'); }
+        function closePantryModal() { document.getElementById('pantry-modal').classList.add('hidden'); }
+        function editPantryItem(id) {
+            const p=(state.pantry||[]).find(x=>x.id===id); if(!p)return;
+            document.getElementById('pn-edit-id').value=p.id; document.getElementById('pn-cat').value=p.category; document.getElementById('pn-name').value=p.name; document.getElementById('pn-portion').value=p.portion; document.getElementById('pn-cal').value=p.calories||0; document.getElementById('pn-pro').value=p.protein||0; document.getElementById('pn-carb').value=p.carbs||0; document.getElementById('pn-fat').value=p.fats||0; document.getElementById('pn-water').value=p.waterMl||0;
+            document.getElementById('pantry-modal-title').textContent='Edit Pantry Item'; document.getElementById('pantry-submit-btn').textContent='Save Changes'; document.getElementById('pantry-modal').classList.remove('hidden');
+        }
+        function deletePantryItem(id) {
+            const p=(state.pantry||[]).find(x=>x.id===id); if(!p)return; if(!confirm(`Delete "${p.name}" from your Pantry?`))return;
+            state.pantry=state.pantry.filter(x=>x.id!==id); saveState(); renderPantryGrid(); renderMultiFoodRows(); showToast(`Deleted ${p.name} from Pantry`,'info');
+        }
+        function handlePantrySubmit(e) {
+            e.preventDefault(); const editId=document.getElementById('pn-edit-id').value; const name=document.getElementById('pn-name').value.trim();
+            if(containsBannedSugar(name)){showToast('Blocked: Added or artificial sugar items cannot be added to the Clean Pantry.','alert');return;}
+            const data={category:document.getElementById('pn-cat').value,name,portion:document.getElementById('pn-portion').value.trim(),calories:parseFloat(document.getElementById('pn-cal').value)||0,protein:parseFloat(document.getElementById('pn-pro').value)||0,carbs:parseFloat(document.getElementById('pn-carb').value)||0,fats:parseFloat(document.getElementById('pn-fat').value)||0,waterMl:parseFloat(document.getElementById('pn-water').value)||0};
+            if(editId){const i=state.pantry.findIndex(x=>x.id===editId);if(i>=0)state.pantry[i]={...state.pantry[i],...data};}else state.pantry.unshift({id:'PN-'+Date.now().toString(36).toUpperCase(),...data});
+            saveState(); closePantryModal(); e.target.reset(); document.getElementById('pn-edit-id').value=''; renderPantryGrid(); renderMultiFoodRows(); showToast(`${editId?'Updated':'Added'} ${name} ${editId?'in':'to'} Clean Pantry`,'success');
+        }
+
+        function quickLogPantryItem(id) {
+            const p = state.pantry.find(item => item.id === id);
+            if (!p) return;
+            const now = new Date();
+            const logId = generateFntLogId(new Set(state.logs.map(log => log.id)));
+            state.logs.unshift({
+                id: logId,
+                date: now.toISOString().split('T')[0],
+                time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+                category: p.category,
+                subType: p.category === 'BEVERAGE' ? 'Clean Sugar-Free Beverage' : p.category === 'FRUIT' ? 'Fresh Whole Fruit' : p.category === 'SNACK' ? 'Whole-Food Snack' : 'Clean Meal',
+                name: p.name,
+                portion: p.portion,
+                calories: p.calories,
+                protein: p.protein || 0,
+                carbs: p.carbs || 0,
+                fats: p.fats || 0,
+                waterMl: p.waterMl || 0,
+                durationMins: 0,
+                sugarStatus: p.category === 'FRUIT' ? 'Natural Fruit Sugar' : '0g Added Sugar',
+                notes: 'Quick-logged from FNT Clean Pantry'
+            });
+            saveState();
+            refreshAllViews();
+            showToast(`Quick-logged: ${p.name} (+${p.calories} kcal)`, 'success');
+        }
+
+        function renderPantryGrid() {
+            const grid = document.getElementById('pantry-cards-grid');
+            if (!grid) return;
+            const filter = document.getElementById('pantry-filter-cat')?.value || 'ALL';
+            const items = (state.pantry || []).filter(p => filter === 'ALL' || p.category === filter);
+
+            grid.innerHTML = items.map(p => `
+                <div class="p-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40 flex flex-col justify-between space-y-3">
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${getCategoryBadgeClass(p.category)}">${escapeHtml(p.category)}</span>
+                            <span class="text-[10px] font-bold text-emerald-500">Sugar Free</span>
+                        </div>
+                        <h4 class="font-bold text-sm text-gray-900 dark:text-white">${escapeHtml(p.name)}</h4>
+                        <p class="text-xs text-gray-500 mt-0.5">Serving: ${escapeHtml(p.portion)} • <strong>${p.calories} kcal</strong></p>
+                        <p class="text-[11px] text-gray-400 mt-1">P: ${p.protein}g • C: ${p.carbs}g • F: ${p.fats}g ${p.waterMl ? `• 💧 ${p.waterMl}ml` : ''}</p>
+                    </div>
+                    <button onclick="quickLogPantryItem('${p.id}')" class="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"><i class="fa-solid fa-plus"></i> Quick Log Today</button>
+                    <div class="grid grid-cols-2 gap-2"><button onclick="editPantryItem('${p.id}')" class="py-2 rounded-lg border border-blue-300 text-blue-600 text-[11px] font-bold"><i class="fa-solid fa-pen-to-square mr-1"></i>Edit</button><button onclick="deletePantryItem('${p.id}')" class="py-2 rounded-lg border border-rose-300 text-rose-600 text-[11px] font-bold"><i class="fa-solid fa-trash-can mr-1"></i>Delete</button></div>
+                </div>
+            `).join('');
+        }
+
+        // --- PDF PROGRESS REPORT ---
+        function renderReportPreview() {
+            const logs = getFilteredLogsByPeriod('report-preset');
+            const memo = document.getElementById('report-custom-memo')?.value || 'Fitness Routine & Clean Nutrition Summary';
+            const author = document.getElementById('report-custom-author')?.value || 'FNT Athlete';
+
+            document.getElementById('pdf-header-subtitle').textContent = memo;
+            document.getElementById('pdf-footer-author').textContent = author;
+            document.getElementById('pdf-generated-at').textContent = new Date().toLocaleString();
+
+            const workouts = logs.filter(l => l.category === 'WORKOUT');
+            const drinks = logs.filter(l => l.category === 'BEVERAGE');
+            const nutrition = logs.filter(l => ['FOOD', 'SNACK', 'FRUIT'].includes(l.category));
+
+            const calIn = nutrition.reduce((s, l) => s + (l.calories || 0), 0) + drinks.reduce((s, l) => s + (l.calories || 0), 0);
+            const calOut = workouts.reduce((s, l) => s + (l.calories || 0), 0);
+            const protein = logs.reduce((s, l) => s + (l.protein || 0), 0);
+            const waterMl = logs.reduce((s, l) => s + (l.waterMl || 0), 0);
+            const totalMins = workouts.reduce((s, l) => s + (l.durationMins || 0), 0);
+
+            document.getElementById('pdf-cal-in').textContent = `${Math.round(calIn)} kcal`;
+            document.getElementById('pdf-cal-out').textContent = `${Math.round(calOut)} kcal`;
+            document.getElementById('pdf-protein').textContent = `${Math.round(protein)} g`;
+            document.getElementById('pdf-hydration').textContent = `${(waterMl / 1000).toFixed(2)} L`;
+            document.getElementById('pdf-workout-badge').textContent = `${totalMins} mins`;
+            document.getElementById('pdf-drinks-badge').textContent = `${Math.round(waterMl)} ml`;
+            document.getElementById('pdf-nutrition-badge').textContent = `${nutrition.length} items`;
+
+            document.getElementById('pdf-workouts-tbody').innerHTML = workouts.length
+                ? workouts.map(w => `<tr><td class="py-1 font-semibold">${escapeHtml(w.name)}</td><td class="py-1">${escapeHtml(w.portion)}</td><td class="py-1 text-right font-bold text-rose-600">-${w.calories} kcal</td></tr>`).join('')
+                : `<tr><td colspan="3" class="py-2 text-center text-gray-400">No workouts logged in period.</td></tr>`;
+
+            document.getElementById('pdf-drinks-tbody').innerHTML = drinks.length
+                ? drinks.map(d => `<tr><td class="py-1 font-semibold">${escapeHtml(d.name)}</td><td class="py-1">${escapeHtml(d.portion)}</td><td class="py-1 text-right font-bold text-emerald-600">0g Added Sugar</td></tr>`).join('')
+                : `<tr><td colspan="3" class="py-2 text-center text-gray-400">No clean beverages logged in period.</td></tr>`;
+
+            document.getElementById('pdf-nutrition-tbody').innerHTML = nutrition.length
+                ? nutrition.map(n => `<tr><td class="py-1 font-bold">${escapeHtml(n.category)}</td><td class="py-1">${escapeHtml(n.name)}</td><td class="py-1">${escapeHtml(n.portion)}</td><td class="py-1 text-right font-bold">${n.calories} kcal / ${n.protein || 0}g P</td></tr>`).join('')
+                : `<tr><td colspan="4" class="py-2 text-center text-gray-400">No meals, snacks, or fruits logged in period.</td></tr>`;
+        }
+
+        function exportReportToPDF() {
+            const element = document.getElementById('pdf-report-document');
+            if (!element) return;
+            document.documentElement.classList.add('report-pdf-export');
+            const opt = {
+                margin: 0,
+                filename: `FNT_Fitness_Nutrition_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true }
+            };
+            showToast('Generating FNT PDF Report...', 'info');
+            html2pdf().set(opt).from(element).save().then(() => {
+                document.documentElement.classList.remove('report-pdf-export');
+                showToast('FNT PDF Report downloaded!', 'success');
+            }).catch(() => {
+                document.documentElement.classList.remove('report-pdf-export');
+                showToast('Could not generate PDF.', 'alert');
+            });
+        }
+
+        // --- SETTINGS, CSV & JSON BACKUP ---
+        function saveTargets(e) {
+            e.preventDefault();
+            state.goals = {
+                mode: document.getElementById('set-goal-mode').value,
+                calories: parseInt(document.getElementById('set-cal-goal').value, 10) || 2200,
+                protein: parseInt(document.getElementById('set-protein-goal').value, 10) || 140,
+                waterMl: parseInt(document.getElementById('set-water-goal').value, 10) || 3000,
+                workoutMins: parseInt(document.getElementById('set-workout-goal').value, 10) || 45
+            };
+            saveState();
+            refreshAllViews();
+            showToast('Daily fitness & nutrition targets updated!', 'success');
+        }
+
+        function exportLedgerCSV() {
+            const rows = [['ID', 'Date', 'Time', 'Category', 'SubType', 'Name', 'Portion', 'Calories', 'Protein(g)', 'Carbs(g)', 'Fats(g)', 'Water(ml)', 'SugarStatus', 'Notes']];
+            (state.logs || []).forEach(l => {
+                rows.push([l.id, l.date, l.time, l.category, l.subType, l.name, l.portion, l.calories, l.protein || 0, l.carbs || 0, l.fats || 0, l.waterMl || 0, l.sugarStatus, l.notes || '']);
+            });
+            const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `FNT_Logs_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('CSV exported!', 'success');
+        }
+
+        function exportJSONBackup() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+            const a = document.createElement('a');
+            a.setAttribute("href", dataStr);
+            a.setAttribute("download", `FNT_Backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            showToast('FNT JSON backup downloaded!', 'success');
+        }
+
+        function importJSONBackup(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const imported = JSON.parse(evt.target.result);
+                    if (imported && Array.isArray(imported.logs)) {
+                        state = { ...state, ...imported };
+                        saveState();
+                        refreshAllViews();
+                        showToast('FNT backup restored successfully!', 'success');
+                    } else {
+                        showToast('Invalid FNT backup file.', 'alert');
+                    }
+                } catch (err) {
+                    showToast('Error reading JSON file.', 'alert');
+                }
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
